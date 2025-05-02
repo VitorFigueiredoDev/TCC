@@ -7,7 +7,7 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { RelatosService } from '../services/relatosService';
 import { auth } from '../config/firebase';
-import Map from '../components/Map';
+
 
 // Corrigir os ícones do Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
