@@ -44,9 +44,22 @@ export function ProblemasProvider({ children }: { children: ReactNode }) {
 
   const adicionarProblema = (novoProblema: Omit<Problema, 'id' | 'dataCriacao'>) => {
     const problema: Problema = {
-      ...novoProblema,
       id: Math.random().toString(36).substr(2, 9),
+      titulo: novoProblema.titulo || 'Sem título',
+      categoria: novoProblema.categoria || 'Geral',
+      descricao: novoProblema.descricao || 'Sem descrição',
+      localizacao: novoProblema.localizacao || 'Não especificada',
+      coordenadas: novoProblema.coordenadas || { lat: 0, lng: 0 },
+      endereco: novoProblema.endereco || {
+        rua: 'Não informada',
+        numero: 'S/N',
+        bairro: 'Não informado',
+        cidade: 'Não informada',
+        estado: 'Não informado'
+      },
+      plusCode: novoProblema.plusCode || 'Não informado',
       dataCriacao: new Date(),
+      status: novoProblema.status || 'pendente'
     };
 
     setProblemas((prev) => {
