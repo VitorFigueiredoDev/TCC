@@ -1,0 +1,15 @@
+rules_version = '2';
+
+// Craft rules based on data in your Firestore database
+// allow write: if firestore.get(
+//    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /fotos-relatos/{imageId} {
+      allow read: if true;  // Qualquer pessoa pode ver as fotos
+      allow write: if request.auth != null  // Apenas usuários autenticados podem fazer upload
+                  && request.resource.size < 5 * 1024 * 1024  // Limite de 5MB
+                  && request.resource.contentType.matches('image/.*');  // Apenas imagens
+    }
+  }
+}

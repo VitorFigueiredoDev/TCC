@@ -1,0 +1,195 @@
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent; /* Remover highlight de toque em dispositivos móveis */
+  overscroll-behavior: none; /* Impedir bouncing em iOS */
+}
+
+body {
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+  padding-top: var(--safe-area-inset-top);
+  padding-bottom: var(--safe-area-inset-bottom);
+}
+
+/* Adicionar suporte a viewport height em dispositivos móveis */
+@supports (-webkit-touch-callout: none) {
+  body, html {
+    height: -webkit-fill-available;
+  }
+}
+
+/* Ajuste para viewport em telas pequenas */
+@media screen and (max-width: 480px) {
+  :root {
+    font-size: 14px;
+  }
+}
+
+/* Estilos para o Mapa Leaflet no tema escuro */
+.dark-map .leaflet-tile-pane {
+  filter: brightness(0.9) contrast(1.1) saturate(1.1);
+}
+
+.dark-popup {
+  background-color: #2D3748 !important;
+  color: #E2E8F0 !important;
+  border-color: #4A5568 !important;
+}
+
+.dark-popup .leaflet-popup-tip {
+  background-color: #2D3748 !important;
+}
+
+.dark-attribution .leaflet-control-attribution {
+  background-color: rgba(45, 55, 72, 0.8) !important;
+  color: #E2E8F0 !important;
+}
+
+.dark-attribution a {
+  color: #90CDF4 !important;
+}
+
+/* Melhorias de acessibilidade */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Adaptar Leaflet para dispositivos touch */
+@media (pointer: coarse) {
+  .leaflet-control-zoom a {
+    min-height: 44px;
+    min-width: 44px;
+    line-height: 44px;
+    font-size: 1.2rem;
+  }
+  
+  .leaflet-marker-icon {
+    transform: scale(1.2);
+  }
+}
+
+/* Animações para Mapa */
+.map-click-indicator {
+  animation: pulse 1s ease-out infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2);
+  }
+}
+
+/* Ajuste de feedback tátil para dispositivos móveis */
+@media (hover: none) {
+  button:active,
+  a:active {
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}
+
+/* Corrigir problema de z-index para o header fixo */
+header, nav, .chakra-stack, [role="navigation"] {
+ 
+  position: relative;
+}
+
+/* Corrigir o comportamento do mapa */
+.leaflet-container {
+  z-index: 1 !important; /* Garantir que o mapa tenha z-index baixo */
+}
+
+/* Impedir que o mapa obstrua a interação com elementos sobrepostos */
+.map-container {
+  isolation: isolate;
+  contain: content;
+}
+
+/* Forçar que elementos sticky funcionem corretamente */
+.sticky-header, [data-sticky], [style*="position: sticky"], [style*="position:sticky"] {
+  z-index: 1000 !important;
+}

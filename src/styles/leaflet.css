@@ -1,0 +1,19 @@
+/* Estilos necessários para o Leaflet */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+}
+
+/* Corrigir z-index do popup para ficar acima do header */
+.leaflet-popup {
+  z-index: 1001;
+}
+
+/* Estilo para o container do mapa */
+.map-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+} 

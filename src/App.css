@@ -1,0 +1,435 @@
+:root {
+  --dark-bg: #1a202c;
+  --dark-surface: #2d3748;
+  --dark-text: #e2e8f0;
+  --dark-primary: #4299e1;
+  --dark-secondary: #2b6cb0;
+  --dark-border: #4a5568;
+  --z-index-map: 0;
+  --z-index-list-items: 1;
+  --z-index-list-buttons: 2;
+  --z-index-content: 50;
+  --z-index-header: 100;
+  --z-index-modal-base: 1000000;
+}
+
+#root {
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  background-color: var(--dark-bg);
+  color: var(--dark-text);
+}
+
+@media (min-width: 768px) {
+  #root {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 1rem;
+  }
+}
+
+/* Mobile First - Ajustes para telas pequenas */
+html {
+  font-size: 14px;
+  background-color: var(--dark-bg);
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+body {
+  background-color: var(--dark-bg);
+  color: var(--dark-text);
+  min-height: 100vh;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  margin: 0;
+  padding: 0;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+/* Estilos para o mapa em tema escuro */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  z-index: var(--z-index-map) !important;
+  border-radius: 8px;
+  touch-action: manipulation;
+  background-color: var(--dark-surface) !important;
+  outline: none !important;
+}
+
+.map-container {
+  position: relative;
+  height: 300px !important;
+  margin: 1rem 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  touch-action: pan-y pinch-zoom;
+}
+
+/* Garantir que o ponteiro do mouse indique que o mapa é clicável */
+.leaflet-container {
+  cursor: pointer !important;
+}
+
+/* Garantir que o marcador seja bem visível em ambos os temas */
+.leaflet-marker-icon {
+  filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.5));
+  transform: scale(1.2); /* Tornar o ícone maior para facilitar o toque */
+}
+
+@media (min-width: 768px) {
+  .map-container {
+    height: 400px !important;
+  }
+}
+
+/* Ajustes para controles do mapa em tema escuro */
+.leaflet-control {
+  background-color: var(--dark-surface) !important;
+  border: 1px solid var(--dark-border) !important;
+  z-index: 1000 !important;
+}
+
+.leaflet-control-zoom a {
+  background-color: var(--dark-surface) !important;
+  color: var(--dark-text) !important;
+  border-color: var(--dark-border) !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background-color: var(--dark-primary) !important;
+  color: var(--dark-text) !important;
+}
+
+/* Popups em tema escuro */
+.leaflet-popup-content-wrapper {
+  background-color: var(--dark-surface) !important;
+  color: var(--dark-text) !important;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.leaflet-popup-tip {
+  background-color: var(--dark-surface) !important;
+}
+
+/* Indicador de clique no mapa */
+.map-click-indicator {
+  animation: darkPulse 1s ease-out infinite;
+}
+
+@keyframes darkPulse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2);
+  }
+}
+
+/* Melhorias para dispositivos móveis */
+@media (max-width: 480px) {
+  .leaflet-control-zoom {
+    margin: 8px !important;
+  }
+  
+  .custom-zoom-control {
+    position: absolute;
+    bottom: 20px;
+    right: 10px;
+    z-index: 1000;
+  }
+  
+  button, 
+  a, 
+  select, 
+  input[type="button"], 
+  input[type="submit"] {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 16px;
+  }
+}
+
+/* Ajustes para elementos de formulário em tema escuro */
+input, 
+select, 
+textarea {
+  background-color: var(--dark-surface) !important;
+  color: var(--dark-text) !important;
+  border-color: var(--dark-border) !important;
+}
+
+input:focus, 
+select:focus, 
+textarea:focus {
+  border-color: var(--dark-primary) !important;
+  box-shadow: 0 0 0 1px var(--dark-primary) !important;
+}
+
+/* Ajustes de acessibilidade */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Estilos para apoiar gestos de toque */
+@media (pointer: coarse) {
+  /* Ajustes específicos para telas de toque */
+  .leaflet-marker-icon {
+    /* Aumentar tamanho para ser mais fácil de tocar */
+    transform: scale(1.2);
+  }
+  
+  /* Fornecer mais espaço para elementos interativos */
+  input, select, textarea, button {
+    padding: 8px 12px !important;
+  }
+}
+
+/* Corrigir problemas de viewport em dispositivos móveis */
+@media screen and (max-width: 480px) {
+  .map-container {
+    height: 100% !important;
+    width: 100% !important;
+  }
+}
+
+/* Melhorar a acessibilidade para usuários com deficiência visual */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Correção definitiva para o problema de modal ficar atrás de outros elementos */
+body .chakra-portal {
+  position: fixed !important;
+  z-index: 999999 !important;
+}
+
+body .chakra-modal__overlay,
+body .chakra-alert-dialog__overlay,
+body .chakra-drawer__overlay {
+  position: fixed !important;
+  z-index: 999999 !important;
+}
+
+body .chakra-modal__content-container,
+body .chakra-alert-dialog__content-container,
+body .chakra-drawer__content-container {
+  position: fixed !important;
+  z-index: 1000000 !important;
+}
+
+/* Garantir que problemas na lista tenham z-index menor */
+.chakra-ui-dark .lista-problemas-container *,
+.lista-problemas-container * {
+  z-index: 1 !important;
+}
+
+/* Adicionar !important para evitar sobrescritas */
+body .leaflet-container {
+  z-index: 0 !important;
+}
+
+/* Adicionar prevenção de interação durante modal aberto */
+body.chakra-modal-open .lista-problemas-container {
+  pointer-events: none !important;
+}
+
+/* Corrigir legibilidade de texto no modo escuro */
+.chakra-ui-dark .leaflet-popup-content {
+  color: white !important;
+}
+
+.chakra-ui-dark .leaflet-popup-content-wrapper {
+  background-color: #2D3748 !important;
+  color: white !important;
+}
+
+.chakra-ui-dark .chakra-text {
+  color: #E2E8F0 !important;
+}
+
+/* Corrigir cores de texto em elementos do mapa no modo escuro */
+.chakra-ui-dark .leaflet-container {
+  color: white !important;
+}
+
+.chakra-ui-dark .chakra-badge {
+  background-color: #4299E1 !important;
+  color: white !important;
+}
+
+/* Garantir que os elementos de navegação fiquem acima do mapa */
+header, 
+nav, 
+.chakra-stack, 
+[role="navigation"] {
+  z-index: 1200 !important;
+  position: relative;
+}
+
+/* Estilos para header no modo escuro */
+.chakra-ui-dark header {
+  background-color: var(--dark-surface) !important;
+  color: var(--dark-text) !important;
+  border-color: var(--dark-border) !important;
+}
+
+/* Estilos para nav no modo escuro */
+.chakra-ui-dark nav {
+  background-color: var(--dark-surface) !important;
+  color: var(--dark-text) !important;
+}
+
+/* Estilos para chakra-stack no modo escuro */
+.chakra-ui-dark .chakra-stack {
+  color: var(--dark-text) !important;
+}
+
+/* Estilos para elementos com role="navigation" no modo escuro */
+.chakra-ui-dark [role="navigation"] {
+  background-color: var(--dark-surface) !important;
+  color: var(--dark-text) !important;
+  border-color: var(--dark-border) !important;
+}
+
+/* Garantir que os links em elementos de navegação tenham cores adequadas */
+.chakra-ui-dark header a,
+.chakra-ui-dark nav a,
+.chakra-ui-dark [role="navigation"] a {
+  color: var(--dark-primary) !important;
+}
+
+.chakra-ui-dark header a:hover,
+.chakra-ui-dark nav a:hover,
+.chakra-ui-dark [role="navigation"] a:hover {
+  color: var(--dark-secondary) !important;
+}
+
+/* Correção específica para o problema de modal ficar atrás de outros elementos */
+.chakra-portal {
+  position: relative;
+  z-index: 100000 !important;
+}
+
+/* Garantir que todos os modais sejam visíveis */
+.chakra-modal,
+.chakra-alert-dialog,
+.chakra-drawer {
+  z-index: 100001 !important;
+}
+
+/* Ordem de exibição de elementos por camada */
+.leaflet-container {
+  z-index: var(--z-index-map) !important;
+}
+
+/* Lista de itens acima do mapa */
+.lista-problemas-container {
+  z-index: var(--z-index-list-items) !important;
+  position: relative;
+}
+
+/* Botões na lista acima dos itens */
+.lista-problemas-container button {
+  z-index: var(--z-index-list-buttons) !important;
+  position: relative;
+}
+
+/* Portal dos modais acima de tudo */
+.chakra-portal {
+  z-index: var(--z-index-modal-base) !important;
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+/* Conteúdo dentro do portal com interação habilitada */
+.chakra-portal > * {
+  pointer-events: auto;
+}
+
+/* Estilos para marcadores no mapa */
+.custom-marker-icon {
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.3));
+  transition: transform 0.2s ease;
+}
+
+.custom-marker-icon.highlighted {
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.7));
+  z-index: 1000 !important;
+}
+
+.leaflet-marker-icon:hover {
+  transform: scale(1.1);
+}
+
+/* Exibição de popup no mapa */
+.leaflet-popup {
+  z-index: 1000 !important;
+}
+
+.leaflet-popup-content {
+  padding: 5px;
+  min-width: 180px;
+}
+
