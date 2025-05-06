@@ -5,6 +5,7 @@ import { LatLng, Map as LeafletMap } from 'leaflet';
 import { useProblemas } from '../contexts/ProblemasContext';
 import { mapStyle, createCategoryIcon } from '../utils/mapConfig';
 import { FaLocationArrow, FaMapMarkerAlt } from 'react-icons/fa';
+import 'leaflet/dist/leaflet.css';
 
 const defaultPosition = { lat: -19.7472, lng: -47.9381 }; // Uberaba-MG
 
@@ -332,7 +333,16 @@ export default function RelatarProblema() {
       categoria: formData.categoria,
       descricao: descricaoCompleta,
       localizacao: localizacao,
-      coordenadas: formData.coordenadas
+      coordenadas: formData.coordenadas,
+      status: 'pendente',
+      endereco: {
+        rua: formData.rua,
+        numero: formData.numero,
+        bairro: formData.bairro,
+        cidade: formData.cidade,
+        estado: formData.estado
+      },
+      plusCode: formData.plusCode
     });
     
     // Resetar o formulário
@@ -430,8 +440,12 @@ export default function RelatarProblema() {
                 center={position ? [position.lat, position.lng] : [defaultPosition.lat, defaultPosition.lng]}
                 zoom={14}
                 style={{ height: '100%', width: '100%', zIndex: 0 }}
-                whenCreated={(map) => {
-                  mapRef.current = map;
+                whenReady={() => {
+                  if (mapRef.current) return;
+                  const map = document.querySelector('.leaflet-container');
+                  if (map) {
+                    mapRef.current = map as unknown as LeafletMap;
+                  }
                 }}
                 scrollWheelZoom={true}
                 zoomControl={false}

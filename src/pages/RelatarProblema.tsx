@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useToast, Box, Text, Button, Container, FormControl, FormLabel, Input, Textarea, VStack, Select, Heading, HStack, IconButton, Spinner, Image } from '@chakra-ui/react';
+import { useToast, Text, Button, Container, FormControl, FormLabel, Input, Textarea, VStack, Select, Heading, HStack, IconButton, Spinner, Image, Box } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import { FaLocationArrow } from 'react-icons/fa';
@@ -7,7 +7,6 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { RelatosService } from '../services/relatosService';
 import { auth } from '../config/firebase';
-
 
 // Corrigir os ícones do Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -26,39 +25,6 @@ function MapEvents({ onLocationFound }: { onLocationFound: (lat: number, lng: nu
   });
   return null;
 }
-
-// Função para obter o endereço a partir das coordenadas usando a API Nominatim do OpenStreetMap
-const getAddressFromCoords = async (lat: number, lng: number) => {
-  try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`
-    );
-    const data = await response.json();
-    
-    if (data.error) {
-      throw new Error('Endereço não encontrado');
-    }
-    
-    const address = data.address || {};
-    
-    return {
-      rua: address.road || address.street || address.pedestrian || '',
-      numero: address.house_number || '',
-      bairro: address.suburb || address.neighbourhood || address.quarter || '',
-      cidade: address.city || address.town || address.village || address.municipality || 'Uberaba',
-      estado: address.state || 'MG'
-    };
-  } catch (error) {
-    console.error('Erro ao buscar endereço:', error);
-    return {
-      rua: '',
-      numero: '',
-      bairro: '',
-      cidade: 'Uberaba',
-      estado: 'MG'
-    };
-  }
-};
 
 export default function RelatarProblema() {
   const [formData, setFormData] = useState({

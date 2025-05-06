@@ -1,4 +1,4 @@
-import { getDatabase, ref, get } from 'firebase/database';
+import { ref, get } from 'firebase/database';
 import { database } from '../config/firebase';
 
 export const AdminService = {
@@ -13,4 +13,4 @@ export const AdminService = {
       return null;
     }
   }
-}; 
+};
