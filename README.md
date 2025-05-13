@@ -140,6 +140,8 @@ npm run test:e2e
 - Deploy automático no Firebase Hosting
 
 ### Deploy Manual
+
+
 ```bash
 npm run build
 firebase deploy
