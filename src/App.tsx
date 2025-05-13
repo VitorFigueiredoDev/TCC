@@ -10,6 +10,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import Admin from './pages/Admin';
 import Home from './pages/Home';
 import Mapa from './pages/Mapa';
+import PrimeiroAdmin from './pages/PrimeiroAdmin';
 import 'leaflet/dist/leaflet.css';
 import './styles/leaflet.css';
 
@@ -18,7 +19,7 @@ function App() {
     <>
       <ColorModeScript initialColorMode={theme.config.initialColorMode} />
       <ChakraProvider theme={theme}>
-        <Router>
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Header />
           <Routes>
             <Route path="/" element={<Home />} />
@@ -42,6 +43,14 @@ function App() {
               } 
             />
             <Route path="/mapa" element={<Mapa />} />
+            <Route 
+              path="/primeiro-admin" 
+              element={
+                <ProtectedRoute>
+                  <PrimeiroAdmin />
+                </ProtectedRoute>
+              } 
+            />
           </Routes>
         </Router>
       </ChakraProvider>

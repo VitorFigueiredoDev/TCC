@@ -4,7 +4,7 @@ import { LatLng } from 'leaflet';
 import { Map } from './Map';
 import { LocationService } from '../services/locationService';
 import { ProblemService } from '../services/problemService';
-import { FormData, Categoria } from '../types';
+import { FormData } from '../types';
 import { FaLocationArrow, FaMapMarkerAlt } from 'react-icons/fa';
 
 const defaultPosition = { lat: -19.7472, lng: -47.9381 }; // Uberaba-MG
@@ -56,7 +56,6 @@ export function ProblemForm() {
       const newPosition = new LatLng(coords.lat, coords.lng);
       setPosition(newPosition);
 
-      // Tentar obter o endereço
       try {
         const endereco = await LocationService.getAddressFromCoords(coords);
         const plusCode = LocationService.generatePlusCode(coords);
@@ -70,14 +69,12 @@ export function ProblemForm() {
 
         toast({
           title: 'Localização obtida com sucesso',
-          description: `Posição marcada no mapa`,
           status: 'success',
           duration: 3000,
           isClosable: true,
         });
       } catch (addressError) {
         console.error('Erro ao obter endereço:', addressError);
-        // Mesmo com erro no endereço, ainda temos as coordenadas
         setFormData(prev => ({
           ...prev,
           coordenadas: coords,
@@ -94,25 +91,27 @@ export function ProblemForm() {
       }
     } catch (error) {
       console.error('Erro ao obter localização:', error);
-      
-      // Usar posição padrão
-      const defaultCoords = { lat: defaultPosition.lat, lng: defaultPosition.lng };
-      const newPosition = new LatLng(defaultCoords.lat, defaultCoords.lng);
-      setPosition(newPosition);
-      
-      setFormData(prev => ({
-        ...prev,
-        coordenadas: defaultCoords
-      }));
-
-      toast({
-        title: 'Erro ao obter localização',
-        description: 'Por favor, permita o acesso à sua localização ou selecione manualmente no mapa.',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
+      handleDefaultLocation();
     }
+  };
+
+  const handleDefaultLocation = () => {
+    const defaultCoords = { lat: defaultPosition.lat, lng: defaultPosition.lng };
+    const newPosition = new LatLng(defaultCoords.lat, defaultCoords.lng);
+    setPosition(newPosition);
+    
+    setFormData(prev => ({
+      ...prev,
+      coordenadas: defaultCoords
+    }));
+
+    toast({
+      title: 'Erro ao obter localização',
+      description: 'Por favor, permita o acesso à sua localização ou selecione manualmente no mapa.',
+      status: 'error',
+      duration: 5000,
+      isClosable: true,
+    });
   };
 
   const startLocationTracking = () => {
@@ -390,32 +389,60 @@ export function ProblemForm() {
                 </Box>
               )}
 
-              <Box height="400px" borderRadius="md" overflow="hidden" mb={4}>
-                {!position && (
-                  <Box 
-                    position="absolute" 
-                    zIndex="10" 
-                    top="50%" 
-                    left="50%" 
-                    transform="translate(-50%, -50%)" 
-                    bg="rgba(0,0,0,0.7)" 
-                    color="white" 
-                    p={4} 
-                    borderRadius="md"
-                    textAlign="center"
-                    maxW="280px"
-                  >
-                    <Text fontWeight="bold">Instruções</Text>
-                    <Text fontSize="sm">Clique em qualquer lugar do mapa para selecionar uma localização ou use o botão para obter sua localização atual.</Text>
-                  </Box>
-                )}
-                <Map
-                  center={position ? [position.lat, position.lng] : [defaultPosition.lat, defaultPosition.lng]}
-                  position={position}
-                  categoria={formData.categoria || 'outros'}
-                  onLocationSelect={handleLocationSelect}
-                  isTracking={isTracking}
-                />
+              <Box height="400px" borderRadius="md" overflow="hidden" mb={4} position="relative">
+                <Box position="relative" height="100%" width="100%">
+                  {!position && (
+                    <Box 
+                      position="absolute" 
+                      zIndex="10" 
+                      top="50%" 
+                      left="50%" 
+                      transform="translate(-50%, -50%)" 
+                      bg="rgba(0,0,0,0.7)" 
+                      color="white" 
+                      p={4} 
+                      borderRadius="md"
+                      textAlign="center"
+                      maxW="280px"
+                    >
+                      <Text fontWeight="bold">Instruções</Text>
+                      <Text fontSize="sm">Clique em qualquer lugar do mapa para selecionar uma localização ou use o botão para obter sua localização atual.</Text>
+                    </Box>
+                  )}
+                  <IconButton
+                    aria-label="Obter localização atual"
+                    icon={<FaMapMarkerAlt />}
+                    onClick={handleGetLocation}
+                    position="absolute"
+                    top="50%"
+                    right={4}
+                    transform="translateY(-50%)"
+                    zIndex={1000}
+                    colorScheme="green"
+                    size="lg"
+                    shadow="lg"
+                    borderWidth="2px"
+                    borderColor="white"
+                    _hover={{ 
+                      transform: 'translateY(-50%) scale(1.1)',
+                      shadow: 'xl'
+                    }}
+                    _active={{
+                      transform: 'translateY(-50%) scale(0.95)'
+                    }}
+                    transition="all 0.2s"
+                  />
+                  <Map
+                    center={position ? [position.lat, position.lng] : [defaultPosition.lat, defaultPosition.lng]}
+                    selectedLocation={position ? [position.lat, position.lng] : null}
+                    categoria={formData.categoria || 'outros'}
+                    onLocationSelect={(coords: [number, number]) => {
+                      const latlng = new LatLng(coords[0], coords[1]);
+                      handleLocationSelect(latlng);
+                    }}
+                    isTracking={isTracking}
+                  />
+                </Box>
               </Box>
             </FormControl>
           </Box>
@@ -528,4 +555,4 @@ export function ProblemForm() {
       </form>
     </Box>
   );
-} 
+}

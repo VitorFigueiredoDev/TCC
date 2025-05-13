@@ -129,9 +129,10 @@ function CenterMapOnLocation({ position }: { position: [number, number] }) {
   const map = useMap();
 
   useEffect(() => {
-    map.setView(position, map.getZoom(), {
+    // Apenas centraliza o mapa na posição sem alterar o zoom atual
+    map.panTo(position, {
       animate: true,
-      duration: 1
+      duration: 0.5
     });
   }, [position, map]);
 

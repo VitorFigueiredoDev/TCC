@@ -24,15 +24,120 @@ export interface Relato {
   resposta?: string;
   dataAtualizacao?: string;
   atualizadoPor?: string;
+  comentarios?: Comentario[];
 }
 
+export interface Comentario {
+  id: string;
+  usuarioId: string;
+  texto: string;
+  dataCriacao: string;
+  nomeUsuario: string;
+  isAdmin?: boolean;
+}
+
+import { cacheService } from './cacheService';
+import { v4 as uuidv4 } from 'uuid';
+
+// Chaves para cache
+const CACHE_KEYS = {
+  RELATOS: 'relatos',
+  PERFIL: (userId: string) => `perfil_${userId}`,
+  COMENTARIOS: (relatoId: string) => `comentarios_${relatoId}`
+};
+
+// Validações
+const validacoes = {
+  relato: (relato: Omit<Relato, 'id' | 'status' | 'dataCriacao'>) => {
+    if (!relato.titulo || relato.titulo.length < 5) {
+      throw new Error('O título deve ter pelo menos 5 caracteres');
+    }
+    if (!relato.descricao || relato.descricao.length < 10) {
+      throw new Error('A descrição deve ter pelo menos 10 caracteres');
+    }
+    if (!relato.tipo || !['buraco', 'iluminacao', 'lixo', 'calcada', 'outros'].includes(relato.tipo)) {
+      throw new Error('Tipo de relato inválido');
+    }
+    return true;
+  },
+  comentario: (comentario: Omit<Comentario, 'id' | 'dataCriacao'>) => {
+    if (!comentario.texto || comentario.texto.trim().length < 2) {
+      throw new Error('O comentário deve ter pelo menos 2 caracteres');
+    }
+    return true;
+  }
+}
+
+export interface PerfilUsuario {
+  id: string;
+  nome: string;
+  email: string;
+  telefone?: string;
+  bairro?: string;
+  cidade: string;
+  estado: string;
+  dataCadastro: string;
+  fotoPerfil?: string;
+  configuracoes: {
+    notificacoesEmail: boolean;
+    notificacoesPush: boolean;
+    perfilPublico: boolean;
+  };
+  estatisticas: {
+    totalRelatos: number;
+    relatosResolvidos: number;
+    comentariosFeitos: number;
+    ultimaAtividade: string;
+  };
+}
+
+// Adicionar métodos para gerenciar perfil
 export const RelatosService = {
+  async listarRelatos() {
+    try {
+      // Tenta obter do cache
+      const cachedRelatos = cacheService.get<Relato[]>(CACHE_KEYS.RELATOS);
+      if (cachedRelatos) {
+        return cachedRelatos;
+      }
+
+      const relatosRef = ref(database, 'relatos');
+      const snapshot = await get(relatosRef);
+      const relatos: Relato[] = [];
+
+      if (snapshot.exists()) {
+        snapshot.forEach((childSnapshot) => {
+          const relato = childSnapshot.val();
+          relato.id = childSnapshot.key;
+          relatos.push(relato);
+        });
+      }
+
+      // Armazena no cache
+      cacheService.set(CACHE_KEYS.RELATOS, relatos);
+      return relatos;
+    } catch (error) {
+      console.error('Erro ao listar relatos:', error);
+      throw error;
+    }
+  },
+
   async adicionarRelato(relato: Omit<Relato, 'id' | 'status' | 'dataCriacao'>, fotoFile?: File) {
     try {
+      // Validar dados do relato
+      validacoes.relato(relato);
+
       let fotoBase64 = '';
       
       // Converter a foto para Base64 se existir
       if (fotoFile) {
+        if (fotoFile.size > 5 * 1024 * 1024) { // 5MB
+          throw new Error('A foto não pode ser maior que 5MB');
+        }
+        if (!fotoFile.type.startsWith('image/')) {
+          throw new Error('O arquivo deve ser uma imagem');
+        }
+        
         fotoBase64 = await new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.readAsDataURL(fotoFile);
@@ -53,49 +158,58 @@ export const RelatosService = {
       const relatosRef = ref(database, 'relatos');
       const novoRelatoRef = await push(relatosRef, novoRelato);
 
-      return {
+      const relatoCompleto = {
         id: novoRelatoRef.key,
         ...novoRelato
       };
+
+      // Atualizar cache
+      const relatosAtuais = cacheService.get<Relato[]>(CACHE_KEYS.RELATOS) || [];
+      cacheService.set(CACHE_KEYS.RELATOS, [...relatosAtuais, relatoCompleto]);
+
+      return relatoCompleto;
     } catch (error) {
       console.error('Erro ao adicionar relato:', error);
       throw error;
     }
   },
 
-  async listarRelatos() {
+
+  async atualizarStatus(id: string, atualizacao: { status: Relato['status']; resposta?: string; prioridade?: 'alta' | 'media' | 'baixa' }) {
     try {
-      const relatosRef = ref(database, 'relatos');
-      const snapshot = await get(relatosRef);
+      if (!['pendente', 'em_andamento', 'resolvido'].includes(atualizacao.status)) {
+        throw new Error('Status inválido');
+      }
 
-      const relatos: Relato[] = [];
-      snapshot.forEach((childSnapshot) => {
-        relatos.push({
-          id: childSnapshot.key,
-          ...childSnapshot.val()
-        });
-      });
+      if (atualizacao.prioridade && !['alta', 'media', 'baixa'].includes(atualizacao.prioridade)) {
+        throw new Error('Prioridade inválida');
+      }
 
-      // Ordenar por data de criação (do mais recente para o mais antigo)
-      return relatos.sort((a, b) => 
-        new Date(b.dataCriacao).getTime() - new Date(a.dataCriacao).getTime()
-      );
-    } catch (error) {
-      console.error('Erro ao listar relatos:', error);
-      throw error;
-    }
-  },
-
-  async atualizarStatus(id: string, novoStatus: Relato['status'], resposta?: string) {
-    try {
       const relatoRef = ref(database, `relatos/${id}`);
-      const atualizacao = {
-        status: novoStatus,
+      const snapshot = await get(relatoRef);
+      
+      if (!snapshot.exists()) {
+        throw new Error('Relato não encontrado');
+      }
+
+      const dadosAtualizacao = {
+        status: atualizacao.status,
         dataAtualizacao: new Date().toISOString(),
-        ...(resposta && { resposta })
+        ...(atualizacao.resposta && { resposta: atualizacao.resposta }),
+        ...(atualizacao.prioridade && { prioridade: atualizacao.prioridade })
       };
       
-      await update(relatoRef, atualizacao);
+      await update(relatoRef, dadosAtualizacao);
+
+      // Atualizar cache
+      const relatosAtuais = cacheService.get<Relato[]>(CACHE_KEYS.RELATOS);
+      if (relatosAtuais) {
+        const relatosAtualizados = relatosAtuais.map(r => 
+          r.id === id ? { ...r, ...atualizacao } : r
+        );
+        cacheService.set(CACHE_KEYS.RELATOS, relatosAtualizados);
+      }
+
       return true;
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
@@ -148,6 +262,59 @@ export const RelatosService = {
       return true;
     } catch (error) {
       console.error('Erro ao remover admin:', error);
+      throw error;
+    }
+  },
+
+  async adicionarComentario(relatoId: string, comentario: Omit<Comentario, 'id' | 'dataCriacao'>) {
+    try {
+      const comentariosRef = ref(database, `relatos/${relatoId}/comentarios`);
+      const novoComentario = {
+        ...comentario,
+        id: uuidv4(),
+        dataCriacao: new Date().toISOString()
+      };
+      
+      await push(comentariosRef, novoComentario);
+      return novoComentario;
+    } catch (error) {
+      console.error('Erro ao adicionar comentário:', error);
+      throw error;
+    }
+  },
+
+  async excluirComentario(relatoId: string, comentarioId: string) {
+    try {
+      const comentarioRef = ref(database, `relatos/${relatoId}/comentarios/${comentarioId}`);
+      await remove(comentarioRef);
+      return true;
+    } catch (error) {
+      console.error('Erro ao excluir comentário:', error);
+      throw error;
+    }
+  },
+
+  async atualizarPerfil(userId: string, dados: Partial<PerfilUsuario>) {
+    try {
+      const perfilRef = ref(database, `usuarios/${userId}/perfil`);
+      await update(perfilRef, {
+        ...dados,
+        dataAtualizacao: new Date().toISOString()
+      });
+      return true;
+    } catch (error) {
+      console.error('Erro ao atualizar perfil:', error);
+      throw error;
+    }
+  },
+
+  async obterPerfil(userId: string) {
+    try {
+      const perfilRef = ref(database, `usuarios/${userId}/perfil`);
+      const snapshot = await get(perfilRef);
+      return snapshot.exists() ? snapshot.val() : null;
+    } catch (error) {
+      console.error('Erro ao obter perfil:', error);
       throw error;
     }
   }

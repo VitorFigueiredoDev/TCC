@@ -35,7 +35,7 @@ import { useToast } from '@chakra-ui/react';
 import { signOut } from 'firebase/auth';
 
 interface LayoutProps {
-  children: React.ReactNode;
+  children: import('react').ReactNode;
 }
 
 export function Layout({ children }: LayoutProps) {

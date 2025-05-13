@@ -16,8 +16,8 @@ import { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../config/firebase';
-import { getDatabase, ref, get, set } from 'firebase/database';
-import { getFirestore, doc, setDoc } from 'firebase/firestore';
+import { getDatabase, ref, get } from 'firebase/database';
+import { RelatosService } from '../services/relatosService';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -43,31 +43,46 @@ export default function Login() {
 
     try {
       setIsLoading(true);
+      
+      // Realizar login
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      // Verificar papel do usuário
-      const adminRef = ref(database, `admins/${user.uid}`);
-      const snapshot = await get(adminRef);
-      const isAdmin = snapshot.exists();
-
-      toast({
-        title: 'Login realizado com sucesso!',
-        status: 'success',
-        duration: 2000,
-      });
-
-      // Redirecionar com base no papel
-      if (isAdmin) {
+      
+      // Verificar se é admin
+      const adminRef = ref(database, `admins/${userCredential.user.uid}`);
+      const adminSnapshot = await get(adminRef);
+      
+      if (adminSnapshot.exists()) {
+        toast({
+          title: 'Login de administrador realizado com sucesso!',
+          status: 'success',
+          duration: 2000,
+        });
         navigate('/admin');
       } else {
+        toast({
+          title: 'Login realizado com sucesso!',
+          status: 'success',
+          duration: 2000,
+        });
         navigate('/');
       }
     } catch (error: any) {
       console.error('Erro no login:', error);
+      let errorMessage = 'Email ou senha inválidos';
+      
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = 'Usuário não encontrado';
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Senha incorreta';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Email inválido';
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Muitas tentativas de login. Tente novamente mais tarde';
+      }
+
       toast({
         title: 'Erro no login',
-        description: 'Email ou senha inválidos',
+        description: errorMessage,
         status: 'error',
         duration: 3000,
       });
@@ -76,89 +91,67 @@ export default function Login() {
     }
   };
 
-  const adicionarAdmin = async (uid, email) => {
-    const adminRef = ref(database, `admins/${uid}`);
-    
-    await set(adminRef, {
-      email: email,
-      permissionLevel: 'admin',
-      dataCriacao: new Date().toISOString(),
-      permissoes: {
-        gerenciarAdmins: true,
-        excluirRelatos: true,
-        editarStatus: true,
-        visualizarEstatisticas: true
-      }
-    });
-  };
-
-  const adicionarAdminFirestore = async (uid, email) => {
-    const db = getFirestore();
-    const adminRef = doc(db, 'admins', uid);
-    
-    await setDoc(adminRef, {
-      email: email,
-      permissionLevel: 'admin',
-      dataCriacao: new Date().toISOString(),
-      permissoes: {
-        gerenciarAdmins: true,
-        excluirRelatos: true,
-        editarStatus: true,
-        visualizarEstatisticas: true
-      }
-    });
-  };
+  // Funções de administrador movidas para o serviço RelatosService
 
   return (
-    <Container maxW="container.sm" mt="80px">
-      <VStack spacing={8} align="stretch">
-        <Heading textAlign="center">Login</Heading>
+    <Container maxW="container.sm" mt={["20px", "40px", "80px"]} px={[4, 6, 8]}>
+      <VStack spacing={[4, 6, 8]} align="stretch">
+        <Heading textAlign="center" fontSize={["2xl", "3xl", "4xl"]}>Login</Heading>
         <Box 
           as="form" 
           onSubmit={handleLogin}
           bg="whiteAlpha.200" 
-          p={8} 
+          p={[4, 6, 8]} 
           borderRadius="md"
           boxShadow="md"
+          w="100%"
         >
-          <VStack spacing={4}>
+          <VStack spacing={[3, 4]} w="100%">
             <FormControl isRequired>
-              <FormLabel>Email</FormLabel>
+              <FormLabel fontSize={["sm", "md"]}>Email</FormLabel>
               <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
-                bg="whiteAlpha.100"
-                _hover={{ bg: 'whiteAlpha.200' }}
+                size={["sm", "md"]}
+                fontSize={["sm", "md"]}
               />
             </FormControl>
+            
             <FormControl isRequired>
-              <FormLabel>Senha</FormLabel>
+              <FormLabel fontSize={["sm", "md"]}>Senha</FormLabel>
               <Input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
-                bg="whiteAlpha.100"
-                _hover={{ bg: 'whiteAlpha.200' }}
+                size={["sm", "md"]}
+                fontSize={["sm", "md"]}
               />
             </FormControl>
             
-            <VStack w="100%" spacing={4} pt={4}>
-              <Button 
-                type="submit" 
-                colorScheme="blue" 
-                w="100%"
-                isLoading={isLoading}
-                size="lg"
-              >
-                Entrar
-              </Button>
-            </VStack>
+            <Button
+              type="submit"
+              colorScheme="blue"
+              width="100%"
+              isLoading={isLoading}
+              size={["sm", "md"]}
+              fontSize={["sm", "md"]}
+              mt={[2, 4]}
+            >
+              Entrar
+            </Button>
+            
+            <HStack spacing={1} fontSize={["xs", "sm"]} justify="center" w="100%" mt={[2, 4]}>
+              <Text>Não tem uma conta?</Text>
+              <ChakraLink as={Link} to="/cadastro" color="blue.400">
+                Cadastre-se
+              </ChakraLink>
+            </HStack>
           </VStack>
         </Box>
       </VStack>
     </Container>
   );
-} 
+}

@@ -1,4 +1,4 @@
-import { Box, Grid, GridItem, Heading, Text, VStack, Badge, useDisclosure, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, useBreakpointValue, Button, HStack, useToast, AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay } from '@chakra-ui/react';
+import { Box, Grid, GridItem, Heading, Text, VStack, Badge, useDisclosure, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, useBreakpointValue, Button, HStack, useToast, AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay, Spinner, Center } from '@chakra-ui/react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, ZoomControl, useMapEvents } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import { useProblemas } from '../contexts/ProblemasContext';
@@ -66,7 +66,17 @@ function MapClickHandler({ onMapClick }: MapClickHandlerProps) {
 }
 
 export default function ListaProblemas() {
-  const { problemas = [], excluirProblema } = useProblemas();
+  const { problemas, isLoading, error, excluirProblema, recarregarProblemas } = useProblemas();
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const itensPorPagina = 10;
+  const indiceInicial = (paginaAtual - 1) * itensPorPagina;
+  const indiceFinal = indiceInicial + itensPorPagina;
+  const problemasExibidos = problemas.slice(indiceInicial, indiceFinal);
+  const totalPaginas = Math.ceil(problemas.length / itensPorPagina);
+
+  useEffect(() => {
+    recarregarProblemas();
+  }, []);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedProblem, setSelectedProblem] = useState<ProblemaAtualizado | null>(null);
   const [highlightedProblem, setHighlightedProblem] = useState<ProblemaAtualizado | null>(null);
@@ -174,6 +184,28 @@ export default function ListaProblemas() {
     plusCode: problema.plusCode || '',
     status: problema.status || 'pendente'
   }));
+
+  if (isLoading) {
+    return (
+      <Center h="100vh">
+        <VStack spacing={4}>
+          <Spinner size="xl" color="blue.500" />
+          <Text>Carregando problemas...</Text>
+        </VStack>
+      </Center>
+    );
+  }
+
+  if (error) {
+    return (
+      <Center h="100vh">
+        <VStack spacing={4}>
+          <Text color="red.500">{error}</Text>
+          <Button onClick={() => window.location.reload()}>Tentar novamente</Button>
+        </VStack>
+      </Center>
+    );
+  }
 
   return (
     <>

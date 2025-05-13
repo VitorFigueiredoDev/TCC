@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useToast, Text, Button, Container, FormControl, FormLabel, Input, Textarea, VStack, Select, Heading, HStack, IconButton, Spinner, Image, Box } from '@chakra-ui/react';
+import React, { useState } from 'react';
+import { verificarConteudoInadequado } from '../utils/contentFilter';
+import { useToast, Text, Button, Container, FormControl, FormLabel, Input, Textarea, VStack, Select, Heading, IconButton, Box } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import { FaLocationArrow } from 'react-icons/fa';
@@ -78,7 +79,7 @@ export default function RelatarProblema() {
           const { latitude, longitude } = position.coords;
           getAddressFromCoords(latitude, longitude);
         },
-        (error) => {
+        () => {
           toast({
             title: 'Erro ao obter localização',
             description: 'Não foi possível obter sua localização atual.',
@@ -115,6 +116,20 @@ export default function RelatarProblema() {
       toast({
         title: 'Erro ao enviar',
         description: 'Por favor, preencha todos os campos obrigatórios',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+    
+    // Validação de conteúdo inadequado
+    const validacaoTitulo = verificarConteudoInadequado(formData.titulo);
+    const validacaoDescricao = verificarConteudoInadequado(formData.descricao);
+    
+    if (!validacaoTitulo.valido || !validacaoDescricao.valido) {
+      toast({
+        title: 'Conteúdo inadequado detectado',
+        description: 'Por favor, remova palavras inadequadas do seu relato.',
         status: 'error',
         duration: 3000,
       });
@@ -214,7 +229,13 @@ export default function RelatarProblema() {
                 value={formData.titulo}
                 onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
                 placeholder="Ex: Buraco na calçada"
+                isInvalid={!verificarConteudoInadequado(formData.titulo).valido}
               />
+              {!verificarConteudoInadequado(formData.titulo).valido && (
+                <Text color="red.500" fontSize="sm" mt={1}>
+                  O título contém palavras inadequadas
+                </Text>
+              )}
             </FormControl>
 
             <FormControl isRequired>
@@ -239,7 +260,13 @@ export default function RelatarProblema() {
                 onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
                 placeholder="Descreva o problema em detalhes"
                 rows={4}
+                isInvalid={!verificarConteudoInadequado(formData.descricao).valido}
               />
+              {!verificarConteudoInadequado(formData.descricao).valido && (
+                <Text color="red.500" fontSize="sm" mt={1}>
+                  A descrição contém palavras inadequadas
+                </Text>
+              )}
             </FormControl>
 
             <FormControl>

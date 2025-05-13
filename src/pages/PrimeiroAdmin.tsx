@@ -1,41 +1,57 @@
 import {
   Box,
-  Container,
-  VStack,
-  Heading,
-  Text,
   Button,
-  Input,
+  Container,
   FormControl,
   FormLabel,
+  Heading,
+  Input,
+  VStack,
   useToast,
-  Select,
+  Text,
 } from '@chakra-ui/react';
 import { useState } from 'react';
-import { auth } from '../config/firebase';
-import { AdminService } from '../services/adminService';
 import { useNavigate } from 'react-router-dom';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../config/firebase';
+import { getDatabase, ref, set } from 'firebase/database';
 
 export default function PrimeiroAdmin() {
-  const [formData, setFormData] = useState({
-    email: '',
-    permissionLevel: 'admin' as const,
-    permissoes: {
-      gerenciarAdmins: false,
-      excluirRelatos: false,
-      editarStatus: true,
-      visualizarEstatisticas: true,
-    }
-  });
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const toast = useToast();
   const navigate = useNavigate();
+  const toast = useToast();
+  const database = getDatabase();
 
-  const handleSetupAdmin = async () => {
-    if (!formData.email) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email || !password || !confirmPassword) {
       toast({
-        title: 'Erro',
-        description: 'Por favor, insira um email.',
+        title: 'Erro no cadastro',
+        description: 'Por favor, preencha todos os campos',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast({
+        title: 'Erro no cadastro',
+        description: 'As senhas não coincidem',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
+    if (email !== 'Ronaldinho@gmail.com') {
+      toast({
+        title: 'Erro no cadastro',
+        description: 'O email deve ser Ronaldinho@gmail.com',
         status: 'error',
         duration: 3000,
       });
@@ -44,58 +60,37 @@ export default function PrimeiroAdmin() {
 
     try {
       setIsLoading(true);
-      const user = auth.currentUser;
-
-      if (!user) {
-        toast({
-          title: 'Erro',
-          description: 'Você precisa estar logado para realizar esta ação.',
-          status: 'error',
-          duration: 3000,
-        });
-        navigate('/login');
-        return;
-      }
-
-      // Verificar se já existe algum admin
-      const isAlreadyAdmin = await AdminService.verificarPermissoes(user.uid);
-      if (isAlreadyAdmin) {
-        toast({
-          title: 'Aviso',
-          description: 'Você já é um administrador.',
-          status: 'info',
-          duration: 3000,
-        });
-        navigate('/admin');
-        return;
-      }
-
-      // Adicionar como admin
-      await AdminService.adicionarAdmin({
-        uid: user.uid,
-        email: formData.email,
-        permissionLevel: 'superadmin', // O primeiro admin sempre é superadmin
-        permissoes: {
-          gerenciarAdmins: true,
-          excluirRelatos: true,
-          editarStatus: true,
-          visualizarEstatisticas: true,
-        }
-      }, user.uid);
       
+      // Criar usuário admin
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Configurar permissões de admin no banco de dados
+      await set(ref(database, `admins/${user.uid}`), {
+        email: user.email,
+        role: 'superadmin',
+        permissoes: {
+          editarStatus: true,
+          excluirRelatos: true,
+          gerenciarAdmins: true,
+          verLogs: true
+        },
+        createdAt: new Date().toISOString()
+      });
+
       toast({
-        title: 'Sucesso!',
-        description: 'Você agora é um administrador do sistema.',
+        title: 'Administrador criado com sucesso!',
+        description: 'Você será redirecionado para a página de administração',
         status: 'success',
         duration: 3000,
       });
-      
+
       navigate('/admin');
     } catch (error: any) {
-      console.error('Erro ao configurar admin:', error);
+      console.error('Erro no cadastro:', error);
       toast({
-        title: 'Erro',
-        description: 'Não foi possível configurar o administrador.',
+        title: 'Erro no cadastro',
+        description: error.message,
         status: 'error',
         duration: 3000,
       });
@@ -105,38 +100,65 @@ export default function PrimeiroAdmin() {
   };
 
   return (
-    <Container maxW="container.sm" py={10}>
-      <VStack spacing={6}>
-        <Heading>Configuração do Primeiro Administrador</Heading>
-        
-        <Text textAlign="center" color="gray.600">
-          Esta página permite configurar o primeiro administrador do sistema.
-          Como primeiro administrador, você terá acesso total ao sistema.
+    <Container maxW="container.sm" mt={["20px", "40px", "80px"]} px={[4, 6, 8]}>
+      <VStack spacing={[4, 6, 8]} align="stretch">
+        <Heading textAlign="center" fontSize={["2xl", "3xl", "4xl"]}>Configuração Inicial do Administrador</Heading>
+        <Text textAlign="center" color="gray.500">
+          Configure a conta do administrador principal do sistema.
         </Text>
-
-        <Box w="100%" p={6} borderWidth={1} borderRadius="lg">
+        
+        <Box 
+          as="form" 
+          onSubmit={handleSubmit}
+          bg="whiteAlpha.200" 
+          p={[4, 6, 8]} 
+          borderRadius="md"
+          boxShadow="md"
+          w="100%"
+        >
           <VStack spacing={4}>
             <FormControl isRequired>
               <FormLabel>Email do Administrador</FormLabel>
               <Input
                 type="email"
-                value={formData.email}
-                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                placeholder="Digite seu email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@falatriangulo.com"
+              />
+            </FormControl>
+
+            <FormControl isRequired>
+              <FormLabel>Senha</FormLabel>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Digite uma senha forte"
+              />
+            </FormControl>
+
+            <FormControl isRequired>
+              <FormLabel>Confirmar Senha</FormLabel>
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirme a senha"
               />
             </FormControl>
 
             <Button
+              type="submit"
               colorScheme="blue"
-              isLoading={isLoading}
-              onClick={handleSetupAdmin}
               width="100%"
+              isLoading={isLoading}
+              mt={4}
             >
-              Configurar como Administrador
+              Criar Conta de Administrador
             </Button>
           </VStack>
         </Box>
       </VStack>
     </Container>
   );
-} 
+}

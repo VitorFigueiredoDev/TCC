@@ -45,15 +45,42 @@ const tipoIcons = {
 const DEFAULT_CENTER = [-18.9113, -48.2622];
 
 // Componente para atualizar a visualização do mapa
-function MapView({ center }) {
+function MapView({ center, userLocation }) {
   const map = useMap();
   
   useEffect(() => {
     if (center && Array.isArray(center) && center.length === 2 && 
         !isNaN(center[0]) && !isNaN(center[1])) {
-      map.setView(center, 15);
+      map.setView(center, map.getZoom() || 15, {
+        animate: true,
+        duration: 1
+      });
     }
   }, [center, map]);
+
+  // Adicionar marcador da localização do usuário
+  useEffect(() => {
+    let marker = null;
+    
+    if (userLocation && Array.isArray(userLocation) && userLocation.length === 2 && 
+        !isNaN(userLocation[0]) && !isNaN(userLocation[1])) {
+      const userIcon = L.divIcon({
+        className: 'custom-div-icon user-location',
+        html: `<div style="background-color: #4CAF50; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5);"></div>`,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8],
+      });
+
+      marker = L.marker(userLocation, { icon: userIcon }).addTo(map);
+      marker.bindPopup('Sua localização atual');
+    }
+
+    return () => {
+      if (marker) {
+        map.removeLayer(marker);
+      }
+    };
+  }, [userLocation, map]);
 
   return null;
 }
@@ -66,7 +93,7 @@ const formatarCoordenadas = (problema) => {
   if (problema.coordenadas?.latitude && problema.coordenadas?.longitude) {
     const lat = parseFloat(problema.coordenadas.latitude);
     const lng = parseFloat(problema.coordenadas.longitude);
-    if (!isNaN(lat) && !isNaN(lng)) {
+    if (!isNaN(lat) && !isNaN(lng) && isValidCoordinate(lat, lng)) {
       return [lat, lng];
     }
   }
@@ -75,7 +102,7 @@ const formatarCoordenadas = (problema) => {
   if (problema.latitude && problema.longitude) {
     const lat = parseFloat(problema.latitude);
     const lng = parseFloat(problema.longitude);
-    if (!isNaN(lat) && !isNaN(lng)) {
+    if (!isNaN(lat) && !isNaN(lng) && isValidCoordinate(lat, lng)) {
       return [lat, lng];
     }
   }
@@ -83,12 +110,17 @@ const formatarCoordenadas = (problema) => {
   // Caso 3: Coordenadas em formato de array
   if (Array.isArray(problema.coordenadas) && problema.coordenadas.length === 2) {
     const [lat, lng] = problema.coordenadas.map(coord => parseFloat(coord));
-    if (!isNaN(lat) && !isNaN(lng)) {
+    if (!isNaN(lat) && !isNaN(lng) && isValidCoordinate(lat, lng)) {
       return [lat, lng];
     }
   }
 
   return null;
+};
+
+// Função para validar coordenadas
+const isValidCoordinate = (lat: number, lng: number): boolean => {
+  return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
 };
 
 const Mapa = () => {
@@ -98,6 +130,25 @@ const Mapa = () => {
   const [todosProblemas, setTodosProblemas] = useState([]);
   const [selectedMarker, setSelectedMarker] = useState(null);
   const [isMobile] = useMediaQuery("(max-width: 48em)");
+  const [userLocation, setUserLocation] = useState(null);
+
+  // Obter localização do usuário
+  useEffect(() => {
+    const obterLocalizacaoUsuario = async () => {
+      try {
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject);
+        });
+        const novaLocalizacao = [position.coords.latitude, position.coords.longitude];
+        setUserLocation(novaLocalizacao);
+        setMapPosition(novaLocalizacao); // Centraliza o mapa na localização do usuário
+      } catch (error) {
+        console.error('Erro ao obter localização:', error);
+      }
+    };
+
+    obterLocalizacaoUsuario();
+  }, []);
   
   useEffect(() => {
     const carregarProblemas = async () => {
@@ -171,6 +222,11 @@ const Mapa = () => {
     <Container maxW="container.xl" py={{ base: 4, md: 8 }} mt={{ base: "60px", md: "64px" }}>
       <VStack spacing={{ base: 4, md: 6 }} align="stretch">
         <Heading size={{ base: "lg", md: "xl" }}>Mapa de Problemas</Heading>
+        {userLocation && (
+          <Text fontSize="sm" color="gray.600">
+            Sua localização atual foi encontrada e o mapa foi centralizado.
+          </Text>
+        )}
         
         {/* Legenda */}
         <Box 
@@ -264,7 +320,7 @@ const Mapa = () => {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             />
-            <MapView center={mapPosition} />
+            <MapView center={mapPosition} userLocation={userLocation} />
             
             {/* Renderizar todos os problemas não selecionados */}
             {todosProblemas.map((problema) => {
@@ -417,4 +473,4 @@ const Mapa = () => {
   );
 };
 
-export default Mapa; 
+export default Mapa;

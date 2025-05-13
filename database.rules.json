@@ -1,22 +1,49 @@
 {
-  /* Visit https://firebase.google.com/docs/database/security to learn more about security rules. */
   "rules": {
-    ".read": "auth != null",
-    ".write": "auth != null",
+    ".read": false,
+    ".write": false,
     "relatos": {
       ".read": true,
-      ".write": "auth != null",
-      ".indexOn": ["dataCriacao", "status"],
+      ".write": false,
+      ".indexOn": ["dataCriacao", "status", "usuarioId"],
       "$relato_id": {
-        ".validate": "newData.hasChildren(['titulo', 'tipo', 'descricao', 'coordenadas', 'endereco', 'status', 'dataCriacao', 'usuarioId'])",
-        ".write": "auth != null && (root.child('admins').child(auth.uid).exists() || data.child('usuarioId').val() === auth.uid)"
+        ".read": true,
+        ".write": "auth != null && (!data.exists() || data.child('usuarioId').val() === auth.uid || root.child('admins').child(auth.uid).exists())",
+        ".validate": "newData.hasChildren(['titulo', 'tipo', 'descricao', 'coordenadas', 'endereco', 'status', 'dataCriacao', 'usuarioId']) && newData.child('usuarioId').val() === auth.uid"
+      }
+    },
+    "comentarios": {
+      ".read": true,
+      ".write": false,
+      ".indexOn": ["relatoId", "dataCriacao"],
+      "$comentario_id": {
+        ".write": "auth != null && (!data.exists() || data.child('usuarioId').val() === auth.uid || root.child('admins').child(auth.uid).exists())",
+        ".validate": "newData.hasChildren(['usuarioId', 'texto', 'dataCriacao', 'nomeUsuario', 'relatoId']) && newData.child('usuarioId').val() === auth.uid"
       }
     },
     "admins": {
-      ".read": "auth != null",
-      ".write": "auth != null",
+      ".read": "auth != null && root.child('admins').child(auth.uid).child('permissionLevel').val() === 'superadmin'",
+      ".write": "auth != null && root.child('admins').child(auth.uid).child('permissionLevel').val() === 'superadmin'",
       "$admin_id": {
-        ".validate": "newData.hasChildren(['email'])"
+        ".validate": "newData.hasChildren(['email', 'permissionLevel', 'permissoes', 'dataCriacao'])"
+      }
+    },
+    "usuarios": {
+      ".indexOn": ["email"],
+      "$user_id": {
+        ".read": "auth != null && (auth.uid === $user_id || root.child('admins').child(auth.uid).exists())",
+        ".write": "auth != null && auth.uid === $user_id",
+        "perfil": {
+          ".validate": "newData.hasChildren(['nome', 'email', 'dataCadastro'])"
+        }
+      }
+    },
+    "logs": {
+      ".read": "auth != null && root.child('admins').child(auth.uid).exists()",
+      ".write": "auth != null && root.child('admins').child(auth.uid).exists()",
+      ".indexOn": ["data", "acao"],
+      "$log_id": {
+        ".validate": "newData.hasChildren(['acao', 'realizadoPor', 'data'])"
       }
     }
   }

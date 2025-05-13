@@ -10,6 +10,7 @@ import {
   useToast,
   Text,
   Link as ChakraLink,
+  HStack,
 } from '@chakra-ui/react';
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -101,74 +102,84 @@ export default function Cadastro() {
   };
 
   return (
-    <Container maxW="container.sm" mt="80px">
-      <VStack spacing={8}>
-        <Heading>Criar Conta</Heading>
-        <VStack spacing={4} w="100%">
-          <Box w="100%" as="form" onSubmit={handleSubmit}>
-            <VStack spacing={4}>
-              <FormControl isRequired>
-                <FormLabel>Nome completo</FormLabel>
-                <Input
-                  value={formData.nome}
-                  onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  placeholder="Digite seu nome completo"
-                  autoComplete="name"
-                />
-              </FormControl>
+    <Container maxW="container.sm" mt={["20px", "40px", "80px"]} px={[4, 6, 8]}>
+      <VStack spacing={[4, 6, 8]} align="stretch">
+        <Heading textAlign="center" fontSize={["2xl", "3xl", "4xl"]}>Cadastro</Heading>
+        <Box 
+          as="form" 
+          onSubmit={handleSubmit}
+          bg="whiteAlpha.200" 
+          p={[4, 6, 8]} 
+          borderRadius="md"
+          boxShadow="md"
+          w="100%"
+        >
+          <VStack spacing={[3, 4]} w="100%">
+            <FormControl isRequired>
+              <FormLabel fontSize={["sm", "md"]}>Nome</FormLabel>
+              <Input
+                type="text"
+                value={formData.nome}
+                onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                size={["sm", "md"]}
+                fontSize={["sm", "md"]}
+              />
+            </FormControl>
 
-              <FormControl isRequired>
-                <FormLabel>Email</FormLabel>
-                <Input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="Digite seu email"
-                  autoComplete="email"
-                />
-              </FormControl>
+            <FormControl isRequired>
+              <FormLabel fontSize={["sm", "md"]}>Email</FormLabel>
+              <Input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                size={["sm", "md"]}
+                fontSize={["sm", "md"]}
+              />
+            </FormControl>
 
-              <FormControl isRequired>
-                <FormLabel>Senha</FormLabel>
-                <Input
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.senha}
-                  onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
-                  placeholder="Digite sua senha"
-                  autoComplete="new-password"
-                />
-              </FormControl>
+            <FormControl isRequired>
+              <FormLabel fontSize={["sm", "md"]}>Senha</FormLabel>
+              <Input
+                type="password"
+                value={formData.senha}
+                onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
+                size={["sm", "md"]}
+                fontSize={["sm", "md"]}
+              />
+            </FormControl>
 
-              <FormControl isRequired>
-                <FormLabel>Confirmar Senha</FormLabel>
-                <Input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={formData.confirmarSenha}
-                  onChange={(e) => setFormData({ ...formData, confirmarSenha: e.target.value })}
-                  placeholder="Confirme sua senha"
-                  autoComplete="new-password"
-                />
-              </FormControl>
+            <FormControl isRequired>
+              <FormLabel fontSize={["sm", "md"]}>Confirmar Senha</FormLabel>
+              <Input
+                type="password"
+                value={formData.confirmarSenha}
+                onChange={(e) => setFormData({ ...formData, confirmarSenha: e.target.value })}
+                size={["sm", "md"]}
+                fontSize={["sm", "md"]}
+              />
+            </FormControl>
 
-              <Button
-                type="submit"
-                colorScheme="blue"
-                w="100%"
-                isLoading={isLoading}
-              >
-                Criar Conta
-              </Button>
+            <Button
+              type="submit"
+              colorScheme="blue"
+              width="100%"
+              isLoading={isLoading}
+              size={["sm", "md"]}
+              fontSize={["sm", "md"]}
+              mt={[2, 4]}
+            >
+              Cadastrar
+            </Button>
 
-              <Text>
-                Já tem uma conta?{' '}
-                <ChakraLink as={Link} to="/login" color="blue.500">
-                  Faça login
-                </ChakraLink>
-              </Text>
-            </VStack>
-          </Box>
-        </VStack>
+            <HStack spacing={1} fontSize={["xs", "sm"]} justify="center" w="100%" mt={[2, 4]}>
+              <Text>Já tem uma conta?</Text>
+              <ChakraLink as={Link} to="/login" color="blue.400">
+                Faça login
+              </ChakraLink>
+            </HStack>
+          </VStack>
+        </Box>
       </VStack>
     </Container>
   );
-} 
+}

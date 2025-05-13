@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { useToast } from '@chakra-ui/react';
 
 interface Problema {
   id: string;
@@ -24,23 +25,52 @@ interface Problema {
 
 interface ProblemasContextData {
   problemas: Problema[];
+  isLoading: boolean;
+  error: string | null;
   adicionarProblema: (problema: Omit<Problema, 'id' | 'dataCriacao'>) => void;
   excluirProblema: (id: string) => void;
+  recarregarProblemas: () => Promise<void>;
 }
 
 const ProblemasContext = createContext<ProblemasContextData>({} as ProblemasContextData);
 
 export function ProblemasProvider({ children }: { children: ReactNode }) {
-  const [problemas, setProblemas] = useState<Problema[]>(() => {
-    const savedProblemas = localStorage.getItem('problemas');
-    if (savedProblemas) {
-      return JSON.parse(savedProblemas).map((problema: any) => ({
-        ...problema,
-        dataCriacao: new Date(problema.dataCriacao)
-      }));
+  const [problemas, setProblemas] = useState<Problema[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
+
+  const carregarProblemas = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const savedProblemas = localStorage.getItem('problemas');
+      if (savedProblemas) {
+        const parsedProblemas = JSON.parse(savedProblemas).map((problema: any) => ({
+          ...problema,
+          dataCriacao: new Date(problema.dataCriacao)
+        }));
+        setProblemas(parsedProblemas);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar problemas:', error);
+      setError('Erro ao carregar os problemas');
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar os problemas',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsLoading(false);
     }
-    return [];
-  });
+  };
+
+  useEffect(() => {
+    carregarProblemas();
+  }, []);
 
   const adicionarProblema = (novoProblema: Omit<Problema, 'id' | 'dataCriacao'>) => {
     const problema: Problema = {
@@ -77,8 +107,19 @@ export function ProblemasProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const recarregarProblemas = async () => {
+    await carregarProblemas();
+  };
+
   return (
-    <ProblemasContext.Provider value={{ problemas, adicionarProblema, excluirProblema }}>
+    <ProblemasContext.Provider value={{ 
+      problemas, 
+      isLoading, 
+      error,
+      adicionarProblema, 
+      excluirProblema,
+      recarregarProblemas
+    }}>
       {children}
     </ProblemasContext.Provider>
   );
