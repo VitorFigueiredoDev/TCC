@@ -26,7 +26,7 @@ import {
   Text,
   Divider
 } from '@chakra-ui/react';
-import { Link as RouterLink, useLocation } from 'react-router-dom';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import { FaHome, FaExclamationTriangle, FaList, FaBars, FaSun, FaMoon, FaUserCog, FaSignOutAlt } from 'react-icons/fa';
 import { auth } from '../config/firebase';
 import { useEffect, useState } from 'react';
@@ -41,6 +41,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const location = useLocation();
+  const navigate = useNavigate();
   const { colorMode, toggleColorMode } = useColorMode();
   const [isAdmin, setIsAdmin] = useState(false);
   const [user, setUser] = useState(auth.currentUser);
@@ -119,7 +120,7 @@ export function Layout({ children }: LayoutProps) {
         >
           <Flex justify="space-between" align="center">
             {/* Logo */}
-            <RouterLink to="/">
+            <Box as="button" onClick={() => navigate("/")}> 
               <Heading 
                 size={{ base: "sm", sm: "md" }} 
                 color={accentColor}
@@ -131,7 +132,7 @@ export function Layout({ children }: LayoutProps) {
                 <Box as={FaExclamationTriangle} mr={{ base: 0, sm: 2 }} color={accentColor} />
                 <Text display={{ base: "none", sm: "block" }}>CidadeAlerta</Text>
               </Heading>
-            </RouterLink>
+            </Box>
 
             {/* Menu Desktop */}
             <HStack 

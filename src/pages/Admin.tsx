@@ -57,6 +57,7 @@ import { RelatosService } from '../services/relatosService';
 import { AdminService } from '../services/adminService';
 import { auth } from '../config/firebase';
 import { useNavigate } from 'react-router-dom';
+import Player from "lottie-react";
 
 // Interfaces para tipagem forte
 interface Endereco {
@@ -452,7 +453,12 @@ export default function Admin() {
 
                 {isLoading ? (
                   <Center py={8}>
-                    <Spinner size="xl" />
+                    <Player
+                      src="https://lottie.host/aebed8c9-9d58-4776-9176-abfa3499c3f9/kHcDbt0OMr.lottie"
+                      style={{ height: 180, width: 180 }}
+                      loop
+                      autoplay
+                    />
                   </Center>
                 ) : (
                   <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
@@ -693,8 +699,7 @@ export default function Admin() {
               </TabPanel>
             )}
           </TabPanels>
-        </Tabs>
-      </VStack>
+        </Tabs>      </VStack>
     </Container>
   );
 }

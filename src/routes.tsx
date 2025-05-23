@@ -9,7 +9,7 @@ const RelatarProblema = lazy(() => import('./pages/ReportProblem'));
 const ListaProblemas = lazy(() => import('./pages/ProblemList'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
-const Profile = lazy(() => import('./pages/Profile'));
+const Perfil = lazy(() => import('./pages/Perfil'));
 const PrimeiroAdmin = lazy(() => import('./pages/PrimeiroAdmin'));
 
 export default function AppRoutes() {
@@ -26,7 +26,7 @@ export default function AppRoutes() {
           <Route path="/cadastro" element={<Register />} />
           <Route path="/relatar" element={<RelatarProblema />} />
           <Route path="/problemas" element={<ListaProblemas />} />
-          <Route path="/perfil" element={<Profile />} />
+          <Route path="/perfil" element={<Perfil />} />
           <Route path="/primeiro-admin" element={<PrimeiroAdmin />} />
         </Routes>
       </Suspense>

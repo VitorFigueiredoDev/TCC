@@ -1,8 +1,6 @@
-import { ref, get, set } from 'firebase/database';
-import { database } from '../config/firebase';
-
-const ADMIN_EMAIL = 'admin@falatriangulo.com';
-const ADMIN_PASSWORD = 'admin123';
+import { ref, get, set, onValue } from 'firebase/database';
+import { database, auth } from '../config/firebase';
+import { User } from 'firebase/auth';
 
 interface AdminPermissoes {
   nome: string;
@@ -11,10 +9,38 @@ interface AdminPermissoes {
     editarStatus: boolean;
     excluirRelatos: boolean;
     gerenciarAdmins: boolean;
+    visualizarEstatisticas: boolean;
   };
 }
 
 export const AdminService = {
+  async verificarAutorizacaoAdmin(user: User | null): Promise<boolean> {
+    if (!user) return false;
+    
+    try {
+      const adminRef = ref(database, `admins/${user.uid}`);
+      const snapshot = await get(adminRef);
+      
+      if (!snapshot.exists()) return false;
+      
+      const adminData = snapshot.val();
+      return adminData.permissionLevel === 'admin' || adminData.permissionLevel === 'superadmin';
+    } catch (error) {
+      console.error('Erro ao verificar autorização de admin:', error);
+      return false;
+    }
+  },
+
+  async monitorarPermissoesAdmin(uid: string, callback: (permissoes: AdminPermissoes | null) => void) {
+    const adminRef = ref(database, `admins/${uid}`);
+    return onValue(adminRef, (snapshot) => {
+      if (snapshot.exists()) {
+        callback(snapshot.val());
+      } else {
+        callback(null);
+      }
+    });
+  },
   async listarLogs() {
     try {
       const logsRef = ref(database, 'admin_logs');
@@ -33,8 +59,8 @@ export const AdminService = {
       return [];
     }
   },
-  async verificarAdmin(email: string) {
-    if (email !== ADMIN_EMAIL) return false;
+  async verificarAdmin(user: User | null) {
+    if (!user) return false;
     
     try {
       const adminsRef = ref(database, 'admins');
@@ -46,22 +72,24 @@ export const AdminService = {
     }
   },
 
-  async verificarCredenciaisAdmin(email: string, senha: string) {
-    return email === ADMIN_EMAIL && senha === ADMIN_PASSWORD;
+  async verificarCredenciaisAdmin(user: User | null) {
+    if (!user) return false;
+    return this.verificarAutorizacaoAdmin(user);
   },
 
   async registrarAdmin(uid: string) {
     try {
       const adminRef = ref(database, `admins/${uid}`);
       await set(adminRef, {
-        email: ADMIN_EMAIL,
+        email: auth.currentUser?.email,
         dataCriacao: new Date().toISOString(),
         nome: 'Administrador',
         permissionLevel: 'admin',
         permissoes: {
           editarStatus: true,
           excluirRelatos: true,
-          gerenciarAdmins: false
+          gerenciarAdmins: false,
+          visualizarEstatisticas: true
         }
       });
       return true;

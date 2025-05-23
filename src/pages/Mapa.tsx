@@ -1,181 +1,208 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Container, Heading, Text, Badge, HStack, VStack, Image, Card, CardBody } from '@chakra-ui/react';
+import {
+  Box,
+  Container,
+  Heading,
+  Text,
+  Badge,
+  HStack,
+  VStack,
+  Image,
+  Card,
+  CardBody,
+  useMediaQuery
+} from '@chakra-ui/react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { useLocation } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { RelatosService } from '../services/relatosService';
-import { useMediaQuery } from '@chakra-ui/react';
 
-// Importar os arquivos de imagem do marcador
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+// Interfaces de tipos de dados
+interface Endereco {
+  rua?: string;
+  numero?: string;
+  bairro?: string;
+  cidade?: string;
+  estado?: string;
+}
 
-// Configurar o ícone padrão do Leaflet para o problema selecionado
+export interface Problema {
+  id: string;
+  titulo: string;
+  descricao: string;
+  foto?: string;
+  tipo: 'buraco' | 'iluminacao' | 'lixo' | 'calcada' | string;
+  status?: string;
+  latitude?: number | string;
+  longitude?: number | string;
+  coordenadas?:
+    | { latitude: number | string; longitude: number | string }
+    | [number | string, number | string];
+  endereco?: Endereco;
+}
+
+// Configurar o ícone padrão do Leaflet
+import iconUrl from 'leaflet/dist/images/marker-icon.png';
+import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
+// Safely delete _getIconUrl if it exists
+if ('_getIconUrl' in L.Icon.Default.prototype) {
+  delete (L.Icon.Default.prototype as any)._getIconUrl;
+}
+L.Icon.Default.mergeOptions({ iconUrl, shadowUrl });
+
+// Ícone para marcador selecionado
 const SelectedIcon = L.icon({
-  iconUrl: icon,
-  shadowUrl: iconShadow,
+  iconUrl,
+  shadowUrl,
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
   shadowSize: [41, 41]
 });
 
-// Criar ícones coloridos menores para os outros problemas
-const createColoredIcon = (color) => {
-  return L.divIcon({
+// Cria ícones coloridos para problemas
+const createColoredIcon = (color: string) =>
+  L.divIcon({
     className: 'custom-div-icon',
     html: `<div style="background-color: ${color}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5);"></div>`,
     iconSize: [16, 16],
     iconAnchor: [8, 8],
-    popupAnchor: [0, -8],
+    popupAnchor: [0, -8]
   });
+
+const tipoIcons: Record<string, L.DivIcon> = {
+  buraco: createColoredIcon('#FF4444'),
+  iluminacao: createColoredIcon('#FFD700'),
+  lixo: createColoredIcon('#8B4513'),
+  calcada: createColoredIcon('#4169E1'),
+  default: createColoredIcon('#808080')
 };
 
-// Definir cores para cada tipo de problema
-const tipoIcons = {
-  buraco: createColoredIcon('#FF4444'),     // Vermelho
-  iluminacao: createColoredIcon('#FFD700'),  // Amarelo
-  lixo: createColoredIcon('#8B4513'),       // Marrom
-  calcada: createColoredIcon('#4169E1'),    // Azul
-  default: createColoredIcon('#808080')     // Cinza para tipos desconhecidos
+const DEFAULT_CENTER: [number, number] = [-18.9113, -48.2622];
+
+// Validação de coordenadas
+const isValidCoordinate = (lat: number, lng: number) =>
+  lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+
+// Formata coordenadas de diferentes formatos
+const formatarCoordenadas = (p: Problema): [number, number] | null => {
+  if ('coordenadas' in p && p.coordenadas && !Array.isArray(p.coordenadas)) {
+    const { latitude, longitude } = p.coordenadas;
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+    if (!isNaN(lat) && !isNaN(lng) && isValidCoordinate(lat, lng)) return [lat, lng];
+  }
+  if (p.latitude !== undefined && p.longitude !== undefined) {
+    const lat = Number(p.latitude);
+    const lng = Number(p.longitude);
+    if (!isNaN(lat) && !isNaN(lng) && isValidCoordinate(lat, lng)) return [lat, lng];
+  }
+  if (Array.isArray(p.coordenadas) && p.coordenadas.length === 2) {
+    const [a, b] = p.coordenadas;
+    const lat = Number(a);
+    const lng = Number(b);
+    if (!isNaN(lat) && !isNaN(lng) && isValidCoordinate(lat, lng)) return [lat, lng];
+  }
+  return null;
 };
 
-// Coordenadas padrão (Uberlândia)
-const DEFAULT_CENTER = [-18.9113, -48.2622];
-
-// Componente para atualizar a visualização do mapa
-function MapView({ center, userLocation }) {
+// Componente para atualizar view e adicionar marcador de usuário
+function MapView({
+  center,
+  userLocation
+}: {
+  center: [number, number];
+  userLocation?: [number, number];
+}) {
   const map = useMap();
-  
   useEffect(() => {
-    if (center && Array.isArray(center) && center.length === 2 && 
-        !isNaN(center[0]) && !isNaN(center[1])) {
-      map.setView(center, map.getZoom() || 15, {
-        animate: true,
-        duration: 1
-      });
+    if (center && isValidCoordinate(center[0], center[1])) {
+      map.setView(center, map.getZoom() || 15, { animate: true, duration: 1 });
     }
   }, [center, map]);
 
-  // Adicionar marcador da localização do usuário
   useEffect(() => {
-    let marker = null;
-    
-    if (userLocation && Array.isArray(userLocation) && userLocation.length === 2 && 
-        !isNaN(userLocation[0]) && !isNaN(userLocation[1])) {
+    let marker: L.Marker;
+    if (userLocation && isValidCoordinate(userLocation[0], userLocation[1])) {
+      // Ícone de localização do usuário mais indicativo
       const userIcon = L.divIcon({
-        className: 'custom-div-icon user-location',
-        html: `<div style="background-color: #4CAF50; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5);"></div>`,
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
+        className: 'user-location-icon',
+        html: `<div style="font-size:24px; color:#3182CE; transform:translate(-50%, -50%);">📍</div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
       });
-
-      marker = L.marker(userLocation, { icon: userIcon }).addTo(map);
-      marker.bindPopup('Sua localização atual');
+      marker = L.marker(userLocation, {
+        icon: userIcon,
+        zIndexOffset: 2000
+      }).addTo(map);
+      marker.bindPopup('<strong>Você está aqui</strong>', {
+        autoClose: false,
+        closeOnClick: false,
+        offset: [0, -12]
+      });
     }
-
     return () => {
-      if (marker) {
-        map.removeLayer(marker);
-      }
+      if (marker) map.removeLayer(marker);
     };
   }, [userLocation, map]);
 
   return null;
 }
 
-// Função para formatar coordenadas
-const formatarCoordenadas = (problema) => {
-  if (!problema) return null;
-
-  // Caso 1: Coordenadas em um objeto aninhado
-  if (problema.coordenadas?.latitude && problema.coordenadas?.longitude) {
-    const lat = parseFloat(problema.coordenadas.latitude);
-    const lng = parseFloat(problema.coordenadas.longitude);
-    if (!isNaN(lat) && !isNaN(lng) && isValidCoordinate(lat, lng)) {
-      return [lat, lng];
-    }
-  }
-
-  // Caso 2: Coordenadas como propriedades diretas
-  if (problema.latitude && problema.longitude) {
-    const lat = parseFloat(problema.latitude);
-    const lng = parseFloat(problema.longitude);
-    if (!isNaN(lat) && !isNaN(lng) && isValidCoordinate(lat, lng)) {
-      return [lat, lng];
-    }
-  }
-
-  // Caso 3: Coordenadas em formato de array
-  if (Array.isArray(problema.coordenadas) && problema.coordenadas.length === 2) {
-    const [lat, lng] = problema.coordenadas.map(coord => parseFloat(coord));
-    if (!isNaN(lat) && !isNaN(lng) && isValidCoordinate(lat, lng)) {
-      return [lat, lng];
-    }
-  }
-
-  return null;
-};
-
-// Função para validar coordenadas
-const isValidCoordinate = (lat: number, lng: number): boolean => {
-  return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
-};
-
-const Mapa = () => {
+const Mapa: React.FC = () => {
   const location = useLocation();
   const selectedProblem = location.state?.selectedProblem;
-  const [mapPosition, setMapPosition] = useState(DEFAULT_CENTER);
-  const [todosProblemas, setTodosProblemas] = useState([]);
-  const [selectedMarker, setSelectedMarker] = useState(null);
-  const [isMobile] = useMediaQuery("(max-width: 48em)");
-  const [userLocation, setUserLocation] = useState(null);
+  const [mapPosition, setMapPosition] =
+    useState<[number, number]>(DEFAULT_CENTER);
+  const [todosProblemas, setTodosProblemas] = useState<Problema[]>([]);
+  const [selectedMarker, setSelectedMarker] =
+    useState<Problema | null>(null);
+  const [isMobile] = useMediaQuery('(max-width: 48em)');
+  const [userLocation, setUserLocation] =
+    useState<[number, number] | undefined>(undefined);
 
-  // Obter localização do usuário
+  // Busca localização do usuário (não centraliza se houver problem selecionado)
   useEffect(() => {
-    const obterLocalizacaoUsuario = async () => {
-      try {
-        const position = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject);
-        });
-        const novaLocalizacao = [position.coords.latitude, position.coords.longitude];
-        setUserLocation(novaLocalizacao);
-        setMapPosition(novaLocalizacao); // Centraliza o mapa na localização do usuário
-      } catch (error) {
-        console.error('Erro ao obter localização:', error);
-      }
-    };
-
-    obterLocalizacaoUsuario();
-  }, []);
-  
-  useEffect(() => {
-    const carregarProblemas = async () => {
-      try {
-        const dados = await RelatosService.listarRelatos();
-        setTodosProblemas(dados);
-      } catch (error) {
-        console.error('Erro ao carregar problemas:', error);
-      }
-    };
-    
-    carregarProblemas();
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const loc: [number, number] = [
+          coords.latitude,
+          coords.longitude
+        ];
+        setUserLocation(loc);
+        if (!selectedProblem) setMapPosition(loc);
+      },
+      err =>
+        console.warn('Não foi possível obter localização', err)
+    );
   }, []);
 
+  // Carrega problemas
+  useEffect(() => {
+    RelatosService.listarRelatos()
+      .then(setTodosProblemas)
+      .catch(err =>
+        console.error('Erro ao carregar relatos', err)
+      );
+  }, []);
+
+  // Centraliza marcador selecionado
   useEffect(() => {
     if (selectedProblem) {
-      const coordenadas = formatarCoordenadas(selectedProblem);
-      if (coordenadas) {
-        setMapPosition(coordenadas);
+      const coords = formatarCoordenadas(selectedProblem);
+      if (coords) {
+        setMapPosition(coords);
         setSelectedMarker(selectedProblem);
       }
     }
   }, [selectedProblem]);
 
-  // Componente do Card de Detalhes Mobile
-  const ProblemaCard = ({ problema }) => (
-    <Card>
+  // Card de detalhes (usado dentro do Popup e no mobile)
+  const ProblemaCard: React.FC<{ problema: Problema }> = ({
+    problema
+  }) => (
+    <Card boxShadow="lg" borderWidth={0} borderRadius="md">
       <CardBody>
         <VStack align="stretch" spacing={3}>
           <Heading size="sm">{problema.titulo}</Heading>
@@ -183,35 +210,37 @@ const Mapa = () => {
             <Image
               src={problema.foto}
               alt={problema.titulo}
-              borderRadius="lg"
+              borderRadius="md"
               objectFit="cover"
               maxH="200px"
               w="100%"
             />
           )}
-          <Text fontSize="sm" noOfLines={3}>{problema.descricao}</Text>
+          <Text fontSize="sm" noOfLines={3}>
+            {problema.descricao}
+          </Text>
           <HStack spacing={2}>
-            <Text fontSize="sm" fontWeight="bold">Tipo:</Text>
-            <Badge colorScheme={
-              problema.tipo === 'buraco' ? 'red' :
-              problema.tipo === 'iluminacao' ? 'yellow' :
-              problema.tipo === 'lixo' ? 'orange' :
-              problema.tipo === 'calcada' ? 'blue' : 'gray'
-            }>
+            <Badge>
               {problema.tipo.charAt(0).toUpperCase() + problema.tipo.slice(1)}
             </Badge>
-          </HStack>
-          <HStack spacing={2}>
-            <Text fontSize="sm" fontWeight="bold">Status:</Text>
-            <Badge>{problema.status}</Badge>
+            {problema.status && (
+              <Badge colorScheme="green">
+                {problema.status}
+              </Badge>
+            )}
           </HStack>
           <Text fontSize="sm" noOfLines={2}>
             {[
               problema.endereco?.rua,
               problema.endereco?.numero,
               problema.endereco?.bairro,
-              problema.endereco ? `${problema.endereco.cidade}-${problema.endereco.estado}` : ''
-            ].filter(Boolean).join(', ')}
+              problema.endereco?.cidade &&
+              problema.endereco?.estado
+                ? `${problema.endereco.cidade}-${problema.endereco.estado}`
+                : undefined
+            ]
+              .filter(Boolean)
+              .join(', ')}
           </Text>
         </VStack>
       </CardBody>
@@ -219,258 +248,141 @@ const Mapa = () => {
   );
 
   return (
-    <Container maxW="container.xl" py={{ base: 4, md: 8 }} mt={{ base: "60px", md: "64px" }}>
+    <Container
+      maxW="container.xl"
+      py={{ base: 4, md: 8 }}
+      mt={{ base: '60px', md: '64px' }}
+    >
       <VStack spacing={{ base: 4, md: 6 }} align="stretch">
-        <Heading size={{ base: "lg", md: "xl" }}>Mapa de Problemas</Heading>
-        {userLocation && (
+        <Heading size={{ base: 'lg', md: 'xl' }}>
+          Mapa de Problemas
+        </Heading>
+        {/* {userLocation && (
           <Text fontSize="sm" color="gray.600">
-            Sua localização atual foi encontrada e o mapa foi centralizado.
+            Localização encontrada e mapa centralizado.
           </Text>
-        )}
-        
+        )} */}
+
         {/* Legenda */}
-        <Box 
-          overflowX="auto" 
+        <Box
+          overflowX="auto"
           pb={2}
           sx={{
             '&::-webkit-scrollbar': {
               height: '8px',
               borderRadius: '8px',
-              backgroundColor: `rgba(0, 0, 0, 0.05)`,
+              backgroundColor: 'rgba(0,0,0,0.05)'
             },
             '&::-webkit-scrollbar-thumb': {
               borderRadius: '8px',
-              backgroundColor: `rgba(0, 0, 0, 0.1)`,
-            },
+              backgroundColor: 'rgba(0,0,0,0.1)'
+            }
           }}
         >
-          <HStack 
-            spacing={{ base: 3, md: 4 }} 
-            minW="fit-content" 
-            p={2}
-          >
-            <Text fontWeight="medium" fontSize={{ base: "sm", md: "md" }}>
+          <HStack spacing={{ base: 3, md: 4 }} minW="fit-content" p={2}>
+            <Text
+              fontWeight="medium"
+              fontSize={{ base: 'sm', md: 'md' }}
+            >
               Tipos de Problemas:
             </Text>
-            <HStack spacing={{ base: 3, md: 4 }}>
-              <HStack spacing={2}>
-                <Box 
-                  w={{ base: "12px", md: "16px" }} 
-                  h={{ base: "12px", md: "16px" }} 
-                  borderRadius="50%" 
-                  bg="#FF4444" 
-                  border="2px solid white" 
-                  boxShadow="0 0 4px rgba(0,0,0,0.5)" 
+            {Object.entries({
+              buraco: '#FF4444',
+              iluminacao: '#FFD700',
+              lixo: '#8B4513',
+              calcada: '#4169E1'
+            }).map(([tipo, cor]) => (
+              <HStack key={tipo} spacing={2}>
+                <Box
+                  w={{ base: '12px', md: '16px' }}
+                  h={{ base: '12px', md: '16px' }}
+                  borderRadius="50%"
+                  bg={cor}
+                  border="2px solid white"
+                  boxShadow="0 0 4px rgba(0,0,0,0.5)"
                 />
-                <Text fontSize={{ base: "sm", md: "md" }}>Buraco</Text>
+                <Text fontSize={{ base: 'sm', md: 'md' }}>
+                  {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
+                </Text>
               </HStack>
-              <HStack spacing={2}>
-                <Box 
-                  w={{ base: "12px", md: "16px" }} 
-                  h={{ base: "12px", md: "16px" }} 
-                  borderRadius="50%" 
-                  bg="#FFD700" 
-                  border="2px solid white" 
-                  boxShadow="0 0 4px rgba(0,0,0,0.5)" 
-                />
-                <Text fontSize={{ base: "sm", md: "md" }}>Iluminação</Text>
-              </HStack>
-              <HStack spacing={2}>
-                <Box 
-                  w={{ base: "12px", md: "16px" }} 
-                  h={{ base: "12px", md: "16px" }} 
-                  borderRadius="50%" 
-                  bg="#8B4513" 
-                  border="2px solid white" 
-                  boxShadow="0 0 4px rgba(0,0,0,0.5)" 
-                />
-                <Text fontSize={{ base: "sm", md: "md" }}>Lixo</Text>
-              </HStack>
-              <HStack spacing={2}>
-                <Box 
-                  w={{ base: "12px", md: "16px" }} 
-                  h={{ base: "12px", md: "16px" }} 
-                  borderRadius="50%" 
-                  bg="#4169E1" 
-                  border="2px solid white" 
-                  boxShadow="0 0 4px rgba(0,0,0,0.5)" 
-                />
-                <Text fontSize={{ base: "sm", md: "md" }}>Calçada</Text>
-              </HStack>
-            </HStack>
+            ))}
           </HStack>
         </Box>
 
         {/* Mapa */}
-        <Box 
-          height={{ base: "400px", md: "600px" }} 
-          border="1px solid" 
-          borderColor="gray.200" 
-          borderRadius="lg" 
+        <Box
+          height={{ base: '400px', md: '600px' }}
+          border="1px solid"
+          borderColor="gray.200"
+          borderRadius="lg"
           overflow="hidden"
           position="relative"
         >
-          <MapContainer 
-            center={mapPosition} 
-            zoom={13} 
+          <MapContainer
+            center={mapPosition}
+            zoom={13}
             style={{ height: '100%', width: '100%' }}
-            scrollWheelZoom={true}
+            scrollWheelZoom
           >
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              attribution='&copy; OpenStreetMap contributors'
             />
             <MapView center={mapPosition} userLocation={userLocation} />
-            
-            {/* Renderizar todos os problemas não selecionados */}
-            {todosProblemas.map((problema) => {
-              const coordenadas = formatarCoordenadas(problema);
-              if (!coordenadas || selectedProblem?.id === problema.id) return null;
-              
+
+            {/* Marcadores */}
+            {todosProblemas.map(p => {
+              const coords = formatarCoordenadas(p);
+              if (!coords || selectedProblem?.id === p.id) return null;
               return (
-                <Marker 
-                  key={problema.id} 
-                  position={coordenadas}
-                  icon={tipoIcons[problema.tipo] || tipoIcons.default}
-                  eventHandlers={{
-                    click: () => {
-                      setSelectedMarker(problema);
-                    },
-                  }}
+                <Marker
+                  key={p.id}
+                  position={coords}
+                  icon={tipoIcons[p.tipo] || tipoIcons.default}
+                  eventHandlers={{ click: () => setSelectedMarker(p) }}
                 >
                   {!isMobile && (
                     <Popup>
-                      <Box p={2} maxW={{ base: "200px", md: "300px" }}>
-                        <Heading size="sm" mb={2}>{problema.titulo}</Heading>
-                        {problema.foto && (
-                          <Box mb={2}>
-                            <Image
-                              src={problema.foto}
-                              alt={problema.titulo}
-                              style={{ 
-                                width: '100%', 
-                                maxHeight: '150px', 
-                                objectFit: 'cover', 
-                                borderRadius: '4px' 
-                              }}
-                            />
-                          </Box>
-                        )}
-                        <Text fontSize="sm" mb={2} noOfLines={3}>{problema.descricao}</Text>
-                        <HStack spacing={2} mb={2}>
-                          <Text fontSize="sm" fontWeight="bold">Tipo:</Text>
-                          <Badge colorScheme={
-                            problema.tipo === 'buraco' ? 'red' :
-                            problema.tipo === 'iluminacao' ? 'yellow' :
-                            problema.tipo === 'lixo' ? 'orange' :
-                            problema.tipo === 'calcada' ? 'blue' : 'gray'
-                          }>
-                            {problema.tipo.charAt(0).toUpperCase() + problema.tipo.slice(1)}
-                          </Badge>
-                        </HStack>
-                        <HStack spacing={2} mb={2}>
-                          <Text fontSize="sm" fontWeight="bold">Status:</Text>
-                          <Badge>{problema.status}</Badge>
-                        </HStack>
-                        <Text fontSize="sm" noOfLines={2}>
-                          {[
-                            problema.endereco?.rua,
-                            problema.endereco?.numero,
-                            problema.endereco?.bairro,
-                            problema.endereco ? `${problema.endereco.cidade}-${problema.endereco.estado}` : ''
-                          ].filter(Boolean).join(', ')}
-                        </Text>
-                      </Box>
+                      <ProblemaCard problema={p} />
                     </Popup>
                   )}
                 </Marker>
               );
             })}
 
-            {/* Renderizar o problema selecionado */}
-            {selectedProblem && (() => {
-              const coordenadas = formatarCoordenadas(selectedProblem);
-              if (!coordenadas) return null;
-
+            {/* Marcador selecionado */}
+            {selectedMarker && (() => {
+              const coords = formatarCoordenadas(selectedMarker)!;
               return (
-                <Marker 
-                  position={coordenadas}
+                <Marker
+                  key={selectedMarker.id}
+                  position={coords}
                   icon={SelectedIcon}
                   zIndexOffset={1000}
-                  eventHandlers={{
-                    click: () => {
-                      setSelectedMarker(selectedProblem);
-                    },
-                  }}
-                >
-                  {!isMobile && (
-                    <Popup>
-                      <Box p={2} maxW={{ base: "200px", md: "300px" }}>
-                        <Heading size="sm" mb={2}>{selectedProblem.titulo}</Heading>
-                        {selectedProblem.foto && (
-                          <Box mb={2}>
-                            <Image
-                              src={selectedProblem.foto}
-                              alt={selectedProblem.titulo}
-                              style={{ 
-                                width: '100%', 
-                                maxHeight: '150px', 
-                                objectFit: 'cover', 
-                                borderRadius: '4px' 
-                              }}
-                            />
-                          </Box>
-                        )}
-                        <Text fontSize="sm" mb={2} noOfLines={3}>{selectedProblem.descricao}</Text>
-                        <HStack spacing={2} mb={2}>
-                          <Text fontSize="sm" fontWeight="bold">Tipo:</Text>
-                          <Badge colorScheme={
-                            selectedProblem.tipo === 'buraco' ? 'red' :
-                            selectedProblem.tipo === 'iluminacao' ? 'yellow' :
-                            selectedProblem.tipo === 'lixo' ? 'orange' :
-                            selectedProblem.tipo === 'calcada' ? 'blue' : 'gray'
-                          }>
-                            {selectedProblem.tipo.charAt(0).toUpperCase() + selectedProblem.tipo.slice(1)}
-                          </Badge>
-                        </HStack>
-                        <HStack spacing={2} mb={2}>
-                          <Text fontSize="sm" fontWeight="bold">Status:</Text>
-                          <Badge>{selectedProblem.status}</Badge>
-                        </HStack>
-                        <Text fontSize="sm" noOfLines={2}>
-                          {[
-                            selectedProblem.endereco?.rua,
-                            selectedProblem.endereco?.numero,
-                            selectedProblem.endereco?.bairro,
-                            selectedProblem.endereco ? `${selectedProblem.endereco.cidade}-${selectedProblem.endereco.estado}` : ''
-                          ].filter(Boolean).join(', ')}
-                        </Text>
-                      </Box>
-                    </Popup>
-                  )}
-                </Marker>
-              );
-            })()}
-          </MapContainer>
-        </Box>
-
-        {/* Card de Detalhes Mobile */}
-        {isMobile && selectedMarker && (
-          <Box 
-            mt={4}
-            borderTopWidth="1px"
-            borderColor="gray.200"
-            zIndex={1000}
-            p={4}
-            maxH="50vh"
-            overflowY="auto"
-          >
-            <ProblemaCard problema={selectedMarker} />
+                  eventHandlers={{ click: () => setSelectedMarker(selectedMarker
+                  ) }}
+                  >
+                    {!isMobile && (
+                      <Popup>
+                        <ProblemaCard problema={selectedMarker} />
+                      </Popup>
+                    )}
+                  </Marker>
+                );
+              })()}
+            </MapContainer>
           </Box>
-        )}
-      </VStack>
-    </Container>
-  );
-};
-
-export default Mapa;
+  
+          {/* Card em modo mobile (fora do mapa) */}
+          {isMobile && selectedMarker && (
+            <Box mt={4}>
+              <ProblemaCard problema={selectedMarker} />
+            </Box>
+          )}
+        </VStack>
+      </Container>
+    );
+  };
+  
+  export default Mapa;
+  

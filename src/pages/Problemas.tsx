@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Container,
@@ -17,11 +18,66 @@ import {
   Spinner,
   Center,
   useToast,
+  useColorModeValue,
+  Button,
+  InputGroup,
+  InputLeftElement,
+  Stack,
+  Icon, // Certifique-se que Icon está importado
 } from '@chakra-ui/react';
-import { useState, useEffect } from 'react';
-import { FaSearch, FaFilter } from 'react-icons/fa';
-import { RelatosService, Relato } from '../services/relatosService';
+import { FaSearch, FaTimesCircle, FaMapMarkedAlt } from 'react-icons/fa'; // FaMapMarkedAlt para o ícone de endereço
+import { RelatosService, Relato } from '../services/relatosService'; // Assegure que Relato esteja exportado ou definido aqui
 import { useNavigate } from 'react-router-dom';
+
+// Interface Relato (se não estiver vindo de relatosService)
+// export interface Endereco { // Mova para um arquivo de tipos se usado em múltiplos lugares
+//   rua?: string;
+//   numero?: string;
+//   bairro?: string;
+//   cidade?: string;
+//   estado?: string;
+//   cep?: string;
+// }
+// export interface Relato {
+//   id: string;
+//   titulo: string;
+//   descricao: string;
+//   foto?: string;
+//   tipo: string; // 'buraco' | 'iluminacao' | 'lixo' | 'calcada' | string;
+//   status: string; // 'pendente' | 'em_andamento' | 'resolvido' | 'recusado' | string;
+//   dataCriacao: string;
+//   latitude?: number | string;
+//   longitude?: number | string;
+//   coordenadas?:
+//     | { latitude: number | string; longitude: number | string }
+//     | { lat: number | string; lng: number | string }
+//     | [number | string, number | string];
+//   endereco?: Endereco;
+// }
+
+
+// Constantes para opções de filtro e imagens
+const TIPO_OPTIONS = [
+  { value: 'buraco', label: 'Buraco na Via' },
+  { value: 'iluminacao', label: 'Iluminação Pública' },
+  { value: 'lixo', label: 'Lixo/Entulho' },
+  { value: 'calcada', label: 'Calçada Danificada' },
+];
+
+const STATUS_OPTIONS = [
+  { value: 'pendente', label: 'Pendente' },
+  { value: 'em_andamento', label: 'Em Andamento' },
+  { value: 'resolvido', label: 'Resolvido' },
+  { value: 'recusado', label: 'Recusado' },
+];
+
+const MAP_TIPO_TO_IMG: Record<string, string> = {
+  buraco: '/imagens/Buraco na Via.jpg',
+  iluminacao: '/imagens/Problema de Iluminação.jpg',
+  lixo: '/imagens/Descarte irregular de Lixo.jpg',
+  calcada: '/imagens/Calçada Danificada.jpg',
+  outros: '/imagens/Outros.jpg', // Fallback
+};
 
 export default function Problemas() {
   const [problemas, setProblemas] = useState<Relato[]>([]);
@@ -32,230 +88,263 @@ export default function Problemas() {
   const navigate = useNavigate();
   const toast = useToast();
 
+  // Cores para tema claro/escuro (Hooks chamados incondicionalmente no topo)
+  const cardBgColor = useColorModeValue('white', 'gray.700');
+  const cardBorderColor = useColorModeValue('gray.200', 'gray.600');
+  const textColor = useColorModeValue('gray.600', 'gray.300');
+  const headingColor = useColorModeValue('gray.700', 'white');
+  const inputBgColor = useColorModeValue('white', 'gray.700');
+  const inputIconColor = useColorModeValue('gray.400', 'gray.500'); // Hoisted
+  const dateTextColor = useColorModeValue('gray.500', 'gray.400'); // Hoisted
+  const containerMt = useColorModeValue("60px", "60px"); // Hoisted
+
   useEffect(() => {
+    const carregarProblemas = async () => {
+      setIsLoading(true);
+      try {
+        const dados = await RelatosService.listarRelatos();
+        const ordenados = dados.sort((a, b) => new Date(b.dataCriacao).getTime() - new Date(a.dataCriacao).getTime());
+        setProblemas(ordenados);
+      } catch (error) {
+        console.error('Erro ao carregar problemas:', error);
+        toast({
+          title: 'Erro ao carregar problemas',
+          description: 'Não foi possível buscar os dados. Tente novamente mais tarde.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
     carregarProblemas();
-  }, []);
+  }, [toast]);
 
-  const carregarProblemas = async () => {
-    try {
-      const dados = await RelatosService.listarRelatos();
-      setProblemas(dados);
-    } catch (error) {
-      console.error('Erro ao carregar problemas:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    const colors = {
+  const getStatusColorScheme = (status: string): string => {
+    const colors: Record<string, string> = {
       pendente: 'yellow',
       em_andamento: 'blue',
       resolvido: 'green',
+      recusado: 'red',
     };
-    return colors[status as keyof typeof colors] || 'gray';
+    return colors[status?.toLowerCase()] || 'gray';
   };
 
-  const problemasFiltrados = problemas.filter(problema => {
-    const matchTipo = !filtroTipo || problema.tipo === filtroTipo;
-    const matchStatus = !filtroStatus || problema.status === filtroStatus;
-    const matchBusca = !busca || 
-      problema.titulo.toLowerCase().includes(busca.toLowerCase()) ||
-      problema.endereco.rua.toLowerCase().includes(busca.toLowerCase()) ||
-      problema.endereco.bairro.toLowerCase().includes(busca.toLowerCase());
-    
-    return matchTipo && matchStatus && matchBusca;
-  });
+  const problemasFiltrados = useMemo(() => {
+    return problemas.filter(problema => {
+      const matchTipo = !filtroTipo || problema.tipo === filtroTipo;
+      const matchStatus = !filtroStatus || problema.status === filtroStatus;
+      const searchLower = busca.toLowerCase();
+      const matchBusca = !busca ||
+        problema.titulo?.toLowerCase().includes(searchLower) ||
+        problema.descricao?.toLowerCase().includes(searchLower) ||
+        problema.endereco?.rua?.toLowerCase().includes(searchLower) ||
+        problema.endereco?.bairro?.toLowerCase().includes(searchLower);
+      return matchTipo && matchStatus && matchBusca;
+    });
+  }, [problemas, filtroTipo, filtroStatus, busca]);
 
   const formatarCoordenadas = (problema: Relato) => {
     let lat, lng;
-    
-    // Tentar obter coordenadas do objeto coordenadas
     if (problema.coordenadas) {
-      if (typeof problema.coordenadas === 'object') {
-        // Se for objeto com lat/lng
-        if ('lat' in problema.coordenadas && 'lng' in problema.coordenadas) {
-          lat = parseFloat(problema.coordenadas.lat.toString());
-          lng = parseFloat(problema.coordenadas.lng.toString());
+      if (typeof problema.coordenadas === 'object' && !Array.isArray(problema.coordenadas)) {
+        const coordsObj = problema.coordenadas as any;
+        if (coordsObj.lat !== undefined && coordsObj.lng !== undefined) {
+          lat = parseFloat(String(coordsObj.lat));
+          lng = parseFloat(String(coordsObj.lng));
+        } else if (coordsObj.latitude !== undefined && coordsObj.longitude !== undefined) {
+          lat = parseFloat(String(coordsObj.latitude));
+          lng = parseFloat(String(coordsObj.longitude));
         }
-        // Se for objeto com latitude/longitude
-        else if ('latitude' in problema.coordenadas && 'longitude' in problema.coordenadas) {
-          lat = parseFloat(problema.coordenadas.latitude.toString());
-          lng = parseFloat(problema.coordenadas.longitude.toString());
-        }
+      } else if (Array.isArray(problema.coordenadas) && problema.coordenadas.length === 2) {
+        lat = parseFloat(String(problema.coordenadas[0]));
+        lng = parseFloat(String(problema.coordenadas[1]));
       }
+    } else if (problema.latitude && problema.longitude) {
+      lat = parseFloat(String(problema.latitude));
+      lng = parseFloat(String(problema.longitude));
     }
-    // Tentar obter de propriedades diretas
-    else if (problema.latitude && problema.longitude) {
-      lat = parseFloat(problema.latitude.toString());
-      lng = parseFloat(problema.longitude.toString());
-    }
-
-    if (!isNaN(lat) && !isNaN(lng)) {
+    if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
       return { latitude: lat, longitude: lng };
     }
     return null;
   };
 
+  const handleCardClick = (problema: Relato) => {
+    const coordenadas = formatarCoordenadas(problema);
+    if (coordenadas) {
+      navigate('/mapa', {
+        state: {
+          selectedProblem: { ...problema, coordenadas }
+        }
+      });
+    } else {
+      toast({
+        title: 'Coordenadas não encontradas',
+        description: 'Não foi possível localizar este problema no mapa.',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const limparFiltros = () => {
+    setFiltroTipo('');
+    setFiltroStatus('');
+    setBusca('');
+  };
+
+  const formatProblemType = (typeKey: string): string => {
+    const foundType = TIPO_OPTIONS.find(opt => opt.value === typeKey);
+    return foundType ? foundType.label : (typeKey ? typeKey.charAt(0).toUpperCase() + typeKey.slice(1) : 'Não especificado');
+  };
+
+  const formatProblemStatus = (statusKey: string): string => {
+    const foundStatus = STATUS_OPTIONS.find(opt => opt.value === statusKey);
+    return foundStatus ? foundStatus.label : (statusKey ? statusKey.charAt(0).toUpperCase() + statusKey.slice(1).replace('_', ' ') : 'N/A');
+  };
+
   return (
-    <Container maxW="container.xl" mt={{ base: "60px", md: "80px" }}>
-      <VStack spacing={{ base: 4, md: 8 }} align="stretch">
-        <Heading size={{ base: "lg", md: "xl" }}>Problemas Relatados</Heading>
+    <Container maxW="container.xl" py={{ base: 6, md: 8 }} mt={containerMt}>
+      <VStack spacing={{ base: 5, md: 8 }} align="stretch">
+        <Heading as="h1" size={{ base: "lg", md: "xl" }} color={headingColor} textAlign={{ base: "center", md: "left" }}>
+          Problemas Relatados na Comunidade
+        </Heading>
 
-        {/* Barra de Filtros */}
-        <VStack spacing={4} align="stretch">
-          {/* Busca e Botão */}
-          <Flex gap={2}>
-            <Input
-              placeholder="Buscar problemas..."
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              flex={1}
-              size={{ base: "sm", md: "md" }}
-            />
-            <IconButton
-              aria-label="Buscar"
-              icon={<FaSearch />}
-              colorScheme="blue"
-              size={{ base: "sm", md: "md" }}
-            />
-          </Flex>
-
-          {/* Filtros */}
-          <Flex 
-            gap={2} 
-            direction={{ base: "column", sm: "row" }}
-            wrap={{ base: "nowrap", sm: "wrap" }}
-          >
-            <Select
-              placeholder="Tipo"
-              value={filtroTipo}
-              onChange={(e) => setFiltroTipo(e.target.value)}
-              size={{ base: "sm", md: "md" }}
-              flex={{ base: "1", sm: "1" }}
-            >
-              <option value="buraco">Buraco na Via</option>
-              <option value="iluminacao">Iluminação</option>
-              <option value="lixo">Lixo</option>
-              <option value="calcada">Calçada</option>
-            </Select>
-            <Select
-              placeholder="Status"
-              value={filtroStatus}
-              onChange={(e) => setFiltroStatus(e.target.value)}
-              size={{ base: "sm", md: "md" }}
-              flex={{ base: "1", sm: "1" }}
-            >
-              <option value="pendente">Pendente</option>
-              <option value="em_andamento">Em Andamento</option>
-              <option value="resolvido">Resolvido</option>
-            </Select>
-          </Flex>
-        </VStack>
+        <Card variant="outline" bg={cardBgColor} borderColor={cardBorderColor} borderRadius="lg" p={{base: 4, md: 5}}>
+          <VStack spacing={4} align="stretch">
+            <InputGroup size={{ base: "sm", md: "md" }}>
+              <InputLeftElement pointerEvents="none">
+                <Icon as={FaSearch} color={inputIconColor} /> {/* Usando variável */}
+              </InputLeftElement>
+              <Input
+                placeholder="Buscar por título, descrição, rua ou bairro..."
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                bg={inputBgColor}
+                borderRadius="md"
+              />
+            </InputGroup>
+            <Stack direction={{ base: "column", md: "row" }} spacing={3} alignItems="center">
+              <Select
+                placeholder="Todos os Tipos"
+                value={filtroTipo}
+                onChange={(e) => setFiltroTipo(e.target.value)}
+                size={{ base: "sm", md: "md" }}
+                bg={inputBgColor}
+                borderRadius="md"
+              >
+                {TIPO_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              </Select>
+              <Select
+                placeholder="Todos os Status"
+                value={filtroStatus}
+                onChange={(e) => setFiltroStatus(e.target.value)}
+                size={{ base: "sm", md: "md" }}
+                bg={inputBgColor}
+                borderRadius="md"
+              >
+                {STATUS_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              </Select>
+              <Button
+                leftIcon={<FaTimesCircle />}
+                onClick={limparFiltros}
+                size={{ base: "sm", md: "md" }}
+                colorScheme="gray"
+                variant="outline"
+                flexShrink={0}
+              >
+                Limpar Filtros
+              </Button>
+            </Stack>
+          </VStack>
+        </Card>
 
         {isLoading ? (
-          <Center py={8}>
-            <Spinner size="xl" />
+          <Center py={10}>
+            <Spinner size="xl" thickness="4px" color="blue.500" />
+            <Text ml={3} color={textColor}>Carregando problemas...</Text>
           </Center>
-        ) : (
-          <SimpleGrid 
-            columns={{ base: 1, sm: 2, lg: 3 }} 
-            spacing={{ base: 4, md: 6 }}
-          >
+        ) : problemasFiltrados.length > 0 ? (
+          <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} spacing={{ base: 4, md: 6 }}>
             {problemasFiltrados.map(problema => (
-              <Card 
-                key={problema.id} 
-                onClick={() => {
-                  const coordenadas = formatarCoordenadas(problema);
-                  if (coordenadas) {
-                    navigate('/mapa', { 
-                      state: { 
-                        selectedProblem: {
-                          ...problema,
-                          coordenadas
-                        } 
-                      } 
-                    });
-                  } else {
-                    toast({
-                      title: 'Erro',
-                      description: 'Não foi possível localizar as coordenadas deste problema no mapa.',
-                      status: 'error',
-                      duration: 3000,
-                    });
-                  }
-                }} 
+              <Card
+                key={problema.id}
+                onClick={() => handleCardClick(problema)}
                 cursor="pointer"
-                _hover={{ transform: 'scale(1.02)', transition: 'transform 0.2s' }}
-                h="fit-content"
+                transition="all 0.2s ease-in-out"
+                _hover={{ transform: 'translateY(-5px)', shadow: 'lg' }}
+                bg={cardBgColor}
+                borderColor={cardBorderColor}
+                borderWidth="1px"
+                overflow="hidden"
+                borderRadius="lg"
+                display="flex"
+                flexDirection="column"
               >
-                <CardBody>
-                  {problema.foto && (
-                    <Box
-                      position="relative"
-                      mb={4}
-                      borderRadius="lg"
-                      overflow="hidden"
-                    >
-                      <Image
-                        src={problema.foto}
-                        alt={problema.titulo}
-                        w="100%"
-                        h={{ base: "200px", md: "250px" }}
-                        objectFit="cover"
-                      />
+                <Box h="180px" overflow="hidden" position="relative">
+                  <Image
+                    src={problema.foto || MAP_TIPO_TO_IMG[problema.tipo] || MAP_TIPO_TO_IMG.outros}
+                    alt={problema.titulo || 'Problema relatado'}
+                    objectFit="cover"
+                    w="full"
+                    h="full"
+                    fallbackSrc={MAP_TIPO_TO_IMG.outros} // Imagem de fallback para o componente Image
+                  />
+                </Box>
+                <CardBody display="flex" flexDirection="column" flexGrow={1} p={4}>
+                  <VStack align="stretch" spacing={2} flexGrow={1}>
+                    <HStack justifyContent="space-between">
                       <Badge
-                        position="absolute"
-                        top={2}
-                        right={2}
-                        colorScheme={getStatusColor(problema.status)}
-                        fontSize="xs"
-                        px={2}
-                        py={1}
-                        borderRadius="full"
+                        colorScheme={getStatusColorScheme(problema.status)}
+                        variant="subtle" fontSize="xs" px={2} py={0.5} borderRadius="md"
                       >
-                        {problema.status.replace('_', ' ')}
+                        {formatProblemStatus(problema.status || 'N/A')}
                       </Badge>
-                    </Box>
-                  )}
-                  <VStack align="stretch" spacing={2}>
-                    <Heading 
-                      size={{ base: "sm", md: "md" }}
-                      noOfLines={2}
-                    >
-                      {problema.titulo}
+                      <Badge
+                        colorScheme="teal" variant="outline" fontSize="xs" px={2} py={0.5} borderRadius="md"
+                      >
+                        {formatProblemType(problema.tipo || 'Outro')}
+                      </Badge>
+                    </HStack>
+                    <Heading size="sm" noOfLines={2} color={headingColor} title={problema.titulo}>
+                      {problema.titulo || 'Título não informado'}
                     </Heading>
-                    <Text 
-                      fontSize={{ base: "sm", md: "md" }}
-                      color="gray.500"
-                      noOfLines={1}
+                    <Text fontSize="xs" color={textColor} noOfLines={1}
+                      title={[ problema.endereco?.rua, problema.endereco?.numero, problema.endereco?.bairro, `${problema.endereco?.cidade || ''}-${problema.endereco?.estado || ''}`].filter(Boolean).join(', ')}
                     >
-                      {[
-                        problema.endereco.rua,
-                        problema.endereco.numero,
-                        problema.endereco.bairro,
-                        `${problema.endereco.cidade}-${problema.endereco.estado}`
-                      ].filter(Boolean).join(', ')}
+                      <Icon as={FaMapMarkedAlt} mr={1} display="inline-block" verticalAlign="middle"/>
+                      {[problema.endereco?.rua, problema.endereco?.numero, problema.endereco?.bairro].filter(Boolean).join(', ')}
                     </Text>
-                    <Text 
-                      fontSize={{ base: "sm", md: "md" }}
-                      noOfLines={2}
-                    >
-                      {problema.descricao}
+                    <Text fontSize="sm" noOfLines={3} color={textColor} flexGrow={1} title={problema.descricao}>
+                      {problema.descricao || 'Descrição não informada.'}
                     </Text>
-                    <Text 
-                      fontSize="sm" 
-                      color="gray.500"
-                    >
-                      Relatado em: {new Date(problema.dataCriacao).toLocaleDateString('pt-BR')}
+                    <Text fontSize="xs" color={dateTextColor} mt="auto"> {/* Usando variável */}
+                      Relatado em: {new Date(problema.dataCriacao).toLocaleDateString('pt-BR', {
+                        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                      })}
                     </Text>
                   </VStack>
                 </CardBody>
               </Card>
             ))}
           </SimpleGrid>
+        ) : (
+          <Center py={10}>
+            <VStack spacing={3}>
+              <Icon as={FaSearch} boxSize="30px" color={textColor}/>
+              <Text color={textColor} fontSize="lg" fontWeight="medium">
+                Nenhum problema encontrado.
+              </Text>
+              <Text color={textColor}>
+                Tente ajustar seus filtros ou limpar a busca.
+              </Text>
+            </VStack>
+          </Center>
         )}
       </VStack>
     </Container>
   );
-} 
+}

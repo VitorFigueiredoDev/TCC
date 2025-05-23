@@ -10,6 +10,12 @@ hosting.*.cache
 .env.local
 .env.*.local
 
+# Configuration files with sensitive data
+src/config/adminConfig.ts
+
+# Example environment file (should be committed, but ensure no secrets in it)
+# .env.example
+
 # Build output
 dist/
 build/

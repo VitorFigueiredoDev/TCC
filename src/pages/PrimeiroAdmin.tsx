@@ -48,10 +48,10 @@ export default function PrimeiroAdmin() {
       return;
     }
 
-    if (email !== 'Ronaldinho@gmail.com') {
+    if (password.length < 6) {
       toast({
         title: 'Erro no cadastro',
-        description: 'O email deve ser Ronaldinho@gmail.com',
+        description: 'A senha deve ter pelo menos 6 caracteres',
         status: 'error',
         duration: 3000,
       });
