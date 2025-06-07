@@ -43,6 +43,17 @@ export const AdminService = {
   },
   async listarLogs() {
     try {
+      // Verificar se o usuário atual é admin
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('Usuário não autenticado');
+      }
+
+      const isAdmin = await this.verificarAutorizacaoAdmin(currentUser);
+      if (!isAdmin) {
+        throw new Error('Permission denied');
+      }
+
       const logsRef = ref(database, 'admin_logs');
       const snapshot = await get(logsRef);
       
@@ -56,7 +67,7 @@ export const AdminService = {
       );
     } catch (error) {
       console.error('Erro ao listar logs:', error);
-      return [];
+      throw error;
     }
   },
   async verificarAdmin(user: User | null) {

@@ -50,16 +50,26 @@ import {
   FormLabel,
   Grid,
   GridItem,
+  useColorModeValue,
+  Icon,
 } from '@chakra-ui/react';
 import { useState, useEffect, useMemo } from 'react';
-import { FaSearch, FaEdit, FaTrash, FaExclamationTriangle, FaUserShield, FaHistory } from 'react-icons/fa';
+import { FaSearch, FaEdit, FaTrash, FaExclamationTriangle, FaUserShield, FaHistory, FaInfoCircle } from 'react-icons/fa';
 import { RelatosService } from '../services/relatosService';
 import { AdminService } from '../services/adminService';
 import { auth } from '../config/firebase';
 import { useNavigate } from 'react-router-dom';
 import Player from "lottie-react";
 
-// Interfaces para tipagem forte
+const MAP_TIPO_TO_IMG: Record<string, string> = {
+  buraco: '/imagens/Buraco na Via.jpg',
+  iluminacao: '/imagens/Problema de Iluminação.jpg',
+  lixo: '/imagens/Descarte irregular de Lixo.jpg',
+  calcada: '/imagens/Calçada Danificada.jpg',
+  sinalizacao: '/imagens/problema sinlizaçao.jpg',
+  outros: '/imagens/Outros.jpg',
+};
+
 interface Endereco {
   rua: string;
   numero: string;
@@ -106,7 +116,6 @@ interface Log {
   detalhes: { tipo: string };
 }
 
-// Hook personalizado para gerenciar dados
 const useAdminData = () => {
   const navigate = useNavigate();
   const toast = useToast();
@@ -128,12 +137,15 @@ const useAdminData = () => {
   const checkAdmin = async () => {
     const user = auth.currentUser;
     if (!user) {
+      console.log('Usuário não autenticado');
       navigate('/login');
       return;
     }
-
+    console.log('Usuário autenticado:', user.uid);
     const permissoes = await AdminService.verificarPermissoes(user.uid);
+    console.log('Permissões do usuário:', permissoes);
     if (!permissoes) {
+      console.log('Usuário sem permissões de admin:', user.uid);
       navigate('/');
       toast({
         title: 'Acesso negado',
@@ -143,7 +155,6 @@ const useAdminData = () => {
       });
       return;
     }
-
     setAdminPermissoes(permissoes);
   };
 
@@ -151,6 +162,7 @@ const useAdminData = () => {
     setIsLoading(true);
     try {
       const dados = await RelatosService.listarRelatos();
+      console.log('Relatos carregados:', dados);
       setRelatos(dados);
       setStats({
         total: dados.length,
@@ -164,6 +176,7 @@ const useAdminData = () => {
 
       if (adminPermissoes?.permissionLevel === 'superadmin') {
         const logsData = await AdminService.listarLogs();
+        console.log('Logs carregados:', logsData);
         setLogs(logsData);
       }
     } catch (error) {
@@ -199,7 +212,6 @@ export default function Admin() {
   const [novoStatus, setNovoStatus] = useState<'pendente' | 'em_andamento' | 'resolvido'>('pendente');
   const [novaPrioridade, setNovaPrioridade] = useState<'alta' | 'media' | 'baixa'>('media');
 
-  // Memorizar a filtragem e ordenação para otimizar renderizações
   const relatosFiltrados = useMemo(() => {
     return relatos
       .filter(relato => {
@@ -236,7 +248,7 @@ export default function Admin() {
     if (adminPermissoes) {
       carregarDados();
     }
-  }, [adminPermissoes, filtroTipo, filtroStatus, filtroPrioridade, busca, ordenacao]);
+  }, [adminPermissoes]);
 
   const handleStatusChange = async () => {
     if (!adminPermissoes?.permissoes.editarStatus) {
@@ -259,8 +271,27 @@ export default function Admin() {
       return;
     }
 
+    if (!auth.currentUser) {
+      toast({
+        title: 'Erro',
+        description: 'Usuário não autenticado. Faça login novamente.',
+        status: 'error',
+        duration: 3000,
+      });
+      navigate('/login');
+      return;
+    }
+
     setIsUpdating(true);
     try {
+      console.log('Chamando atualizarStatus:', {
+        id: selectedRelato.id,
+        status: novoStatus,
+        prioridade: novaPrioridade,
+        resposta: resposta.trim(),
+        usuarioId: auth.currentUser.uid,
+      });
+
       await RelatosService.atualizarStatus(selectedRelato.id, {
         status: novoStatus,
         resposta: resposta.trim(),
@@ -282,7 +313,7 @@ export default function Admin() {
       console.error('Erro ao atualizar status:', error);
       toast({
         title: 'Erro',
-        description: 'Não foi possível atualizar o status do relato.',
+        description: error instanceof Error ? error.message : 'Não foi possível atualizar o status do relato.',
         status: 'error',
         duration: 3000,
       });
@@ -336,7 +367,7 @@ export default function Admin() {
   return (
     <Container maxW="container.xl" mt={8}>
       <VStack spacing={8} align="stretch">
-        <Heading mb={4}>Bem vindo, {adminPermissoes?.nome || 'Administrador'}</Heading>
+        <Heading mb={4}>Bem-vindo, {adminPermissoes?.nome || 'Administrador'}</Heading>
 
         <Tabs>
           <TabList>
@@ -466,21 +497,24 @@ export default function Admin() {
                       <Card key={relato.id}>
                         <CardBody>
                           <VStack align="stretch" spacing={4}>
-                            {relato.foto && (
-                              <Image
-                                src={relato.foto}
-                                alt={relato.titulo}
-                                borderRadius="lg"
-                                w="100%"
-                                h="200px"
-                                objectFit="cover"
-                              />
-                            )}
+                            <Image
+                              src={relato.foto || MAP_TIPO_TO_IMG[relato.tipo] || MAP_TIPO_TO_IMG.outros}
+                              alt={relato.titulo}
+                              borderRadius="lg"
+                              w="100%"
+                              h="200px"
+                              objectFit="cover"
+                            />
                             <Flex justify="space-between" align="center">
                               <Heading size="md">{relato.titulo}</Heading>
-                              <Badge colorScheme={getStatusColor(relato.status)}>
-                                {relato.status.replace('_', ' ')}
-                              </Badge>
+                              <HStack>
+                                <Badge colorScheme={getStatusColor(relato.status)}>
+                                  {relato.status.replace('_', ' ')}
+                                </Badge>
+                                <Badge colorScheme={relato.prioridade === 'alta' ? 'red' : relato.prioridade === 'media' ? 'yellow' : 'green'}>
+                                  Prioridade {relato.prioridade}
+                                </Badge>
+                              </HStack>
                             </Flex>
                             <Text color="gray.500">
                               {[
@@ -540,22 +574,37 @@ export default function Admin() {
                   aria-labelledby="modal-title"
                 >
                   <ModalOverlay />
-                  <ModalContent role="dialog" aria-modal="true">
-                    <ModalHeader id="modal-title">Gerenciar Relato</ModalHeader>
-                    <ModalCloseButton aria-label="Fechar modal" />
-                    <ModalBody>
-                      <VStack spacing={4} align="stretch">
-                        <Text fontWeight="bold">Detalhes do Relato:</Text>
-                        <Text>Título: {selectedRelato?.titulo}</Text>
-                        <Text>Descrição: {selectedRelato?.descricao}</Text>
-                        <Text>Endereço: {selectedRelato?.endereco.rua}, {selectedRelato?.endereco.numero} - {selectedRelato?.endereco.bairro}</Text>
+                  <ModalContent bg={useColorModeValue('gray.900', 'gray.800')} borderRadius="2xl" boxShadow="2xl" p={2}>
+                    <ModalHeader fontWeight="bold" fontSize="2xl" color="blue.300" borderTopRadius="2xl" bg={useColorModeValue('blue.900', 'blue.700')}>
+                      Gerenciar Relato
+                    </ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody p={6}>
+                      <VStack spacing={6} align="stretch">
+                        <Box bg={useColorModeValue('gray.800', 'gray.700')} borderRadius="lg" p={4} mb={2} boxShadow="md">
+                          <Text fontWeight="bold" color="blue.200" mb={2}>Detalhes do Relato:</Text>
+                          <Text color="gray.100"><b>Título:</b> {selectedRelato?.titulo}</Text>
+                          <Text color="gray.100"><b>Descrição:</b> {selectedRelato?.descricao}</Text>
+                          <Text color="gray.100"><b>Endereço:</b> {[selectedRelato?.endereco.rua, selectedRelato?.endereco.numero, selectedRelato?.endereco.bairro].filter(Boolean).join(', ')}</Text>
+                          <HStack mt={2} spacing={3}>
+                            <Badge colorScheme={getStatusColor(selectedRelato?.status || '')} fontSize="md" px={3} py={1} borderRadius="lg" fontWeight="bold">
+                              {selectedRelato?.status?.replace('_', ' ').toUpperCase()}
+                            </Badge>
+                            <Badge colorScheme="yellow" fontSize="md" px={3} py={1} borderRadius="lg" fontWeight="bold">
+                              Prioridade {selectedRelato?.prioridade?.charAt(0).toUpperCase() + selectedRelato?.prioridade?.slice(1)}
+                            </Badge>
+                          </HStack>
+                        </Box>
                         <FormControl id="status-select">
-                          <FormLabel>Status</FormLabel>
+                          <FormLabel color="blue.200">Status</FormLabel>
                           <Select
                             value={novoStatus}
                             onChange={(e) => setNovoStatus(e.target.value as 'pendente' | 'em_andamento' | 'resolvido')}
                             aria-label="Selecionar status"
                             isDisabled={isUpdating}
+                            bg={useColorModeValue('gray.800', 'gray.700')}
+                            color="white"
+                            borderColor={useColorModeValue('gray.600', 'gray.500')}
                           >
                             <option value="pendente">Pendente</option>
                             <option value="em_andamento">Em Andamento</option>
@@ -563,51 +612,43 @@ export default function Admin() {
                           </Select>
                         </FormControl>
                         <FormControl id="prioridade-select">
-                          <FormLabel>Prioridade</FormLabel>
+                          <FormLabel color="blue.200">Prioridade</FormLabel>
                           <Select
                             value={novaPrioridade}
                             onChange={(e) => setNovaPrioridade(e.target.value as 'alta' | 'media' | 'baixa')}
                             aria-label="Selecionar prioridade"
                             isDisabled={isUpdating}
+                            bg={useColorModeValue('gray.800', 'gray.700')}
+                            color="white"
+                            borderColor={useColorModeValue('gray.600', 'gray.500')}
                           >
                             <option value="alta">Alta</option>
                             <option value="media">Média</option>
                             <option value="baixa">Baixa</option>
                           </Select>
                         </FormControl>
-                        <FormControl id="resposta-textarea">
-                          <FormLabel>Resposta ao Cidadão</FormLabel>
+                        <FormControl id="resposta-cidadao">
+                          <HStack align="center" mb={1} spacing={2}>
+                            <FormLabel color="blue.200" mb={0}>Resposta ao Cidadão</FormLabel>
+                            <Icon as={FaInfoCircle} color="blue.300" boxSize={4} />
+                            <Text color="gray.400" fontSize="sm">Preencha apenas se desejar notificar o cidadão sobre progresso ou conclusão do problema.</Text>
+                          </HStack>
                           <Textarea
                             value={resposta}
                             onChange={(e) => setResposta(e.target.value)}
-                            placeholder="Digite uma resposta para o cidadão..."
-                            rows={4}
-                            aria-label="Resposta ao cidadão"
-                            resize="vertical"
+                            placeholder="Mensagem para o cidadão..."
                             isDisabled={isUpdating}
+                            bg={useColorModeValue('gray.800', 'gray.700')}
+                            color="white"
+                            borderColor={useColorModeValue('gray.600', 'gray.500')}
+                            minH="80px"
                           />
                         </FormControl>
                       </VStack>
                     </ModalBody>
                     <ModalFooter>
-                      <Button
-                        colorScheme="gray"
-                        mr={3}
-                        onClick={onClose}
-                        aria-label="Cancelar e fechar modal"
-                        isDisabled={isUpdating}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button
-                        colorScheme="blue"
-                        onClick={handleStatusChange}
-                        isLoading={isUpdating}
-                        loadingText="Salvando..."
-                        aria-label="Salvar alterações"
-                      >
-                        Salvar Alterações
-                      </Button>
+                      <Button onClick={onClose} variant="ghost" colorScheme="gray" mr={3} borderRadius="xl">Cancelar</Button>
+                      <Button onClick={handleStatusChange} colorScheme="blue" borderRadius="xl" isLoading={isUpdating}>Salvar Alterações</Button>
                     </ModalFooter>
                   </ModalContent>
                 </Modal>
@@ -699,7 +740,8 @@ export default function Admin() {
               </TabPanel>
             )}
           </TabPanels>
-        </Tabs>      </VStack>
+        </Tabs>
+      </VStack>
     </Container>
   );
 }

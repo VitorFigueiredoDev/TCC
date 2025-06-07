@@ -3,20 +3,21 @@ import {
   useToast, Text, Button, Container, FormControl, FormLabel,
   Input, Textarea, VStack, Select, Heading, IconButton, Box, FormErrorMessage,
   Icon, InputGroup, InputLeftElement, Divider,
-  useColorModeValue // Hook para cores dinâmicas de modo claro/escuro
+  useColorModeValue, InputRightElement
 } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
-import { FaLocationArrow, FaImage, FaPaperPlane, FaMapMarkerAlt } from 'react-icons/fa';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import { FaLocationArrow, FaImage, FaPaperPlane, FaMapMarkerAlt, FaSearch } from 'react-icons/fa';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
+// Supondo que você tenha esses arquivos - ajuste os caminhos se necessário
 import { verificarConteudoInadequado } from '../utils/contentFilter';
 import { RelatosService } from '../services/relatosService';
 import { auth } from '../config/firebase';
 
 // --- Constantes ---
-const DEFAULT_CENTER: L.LatLngTuple = [-19.7487, -47.9386]; // Uberaba Coordinates
+const DEFAULT_CENTER: L.LatLngTuple = [-19.7487, -47.9386]; // Coordenadas de Uberaba
 const DEFAULT_ZOOM = 13;
 const DEFAULT_CITY = 'Uberaba';
 const DEFAULT_STATE = 'MG';
@@ -48,12 +49,21 @@ function MapEvents({ onLocationSelect }: { onLocationSelect: (lat: number, lng: 
   return null;
 }
 
+// Componente para centralizar o mapa (com useEffect)
+function ChangeMapView({ coords }: { coords: L.LatLngTuple }) {
+  const map = useMap();
+  useEffect(() => {
+      map.setView(coords, map.getZoom());
+  }, [coords, map]);
+  return null;
+}
+
 // --- Tipos e Interfaces ---
 interface FormDataState {
   titulo: string;
   descricao: string;
   tipo: string;
-  foto: File | null; // foto continua podendo ser null inicialmente
+  foto: File | null;
   rua: string;
   numero: string;
   bairro: string;
@@ -78,18 +88,19 @@ export default function RelatarProblema() {
   });
 
   const [isLoading, setIsLoading] = useState(false);
-  // 1. Atualizar o estado validationErrors para incluir a foto
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [validationErrors, setValidationErrors] = useState<{ titulo?: string; descricao?: string; foto?: string }>({});
   const navigate = useNavigate();
   const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const [mapCenter, setMapCenter] = useState<L.LatLngTuple>(DEFAULT_CENTER);
+  const mapRef = useRef<L.Map | null>(null);
+
   useEffect(() => {
     setMapCenter([formData.coordenadas.lat, formData.coordenadas.lng]);
   }, [formData.coordenadas]);
 
-  // --- Handlers e Lógica ---
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -102,7 +113,6 @@ export default function RelatarProblema() {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setFormData(prev => ({ ...prev, foto: file }));
-      // Limpar erro da foto ao selecionar uma imagem
       setValidationErrors(prev => ({ ...prev, foto: undefined }));
     } else {
       setFormData(prev => ({ ...prev, foto: null }));
@@ -129,22 +139,73 @@ export default function RelatarProblema() {
         cidade: address.city || address.town || address.village || address.municipality || DEFAULT_CITY,
         estado: address.state || DEFAULT_STATE,
       }));
+      setMapCenter([lat, lng]);
       toast({ title: "Localização atualizada", status: "info", duration: 2000, isClosable: true });
     } catch (error: any) {
       console.error('Erro ao buscar endereço por coordenadas:', error);
-      toast({
-        title: 'Erro ao buscar endereço',
-        description: error.message,
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
+      toast({ title: 'Erro ao buscar endereço', description: error.message, status: 'error', duration: 3000, isClosable: true });
     } finally {
       setIsLoading(false);
     }
   }, [toast]);
 
   const handleMapClick = useCallback((lat: number, lng: number) => { getAddressFromCoords(lat, lng); }, [getAddressFromCoords]);
+
+  // --- FUNÇÃO COM VIEWBOX ---
+  const handleSearchLocation = useCallback(async () => {
+    if (!searchQuery.trim()) {
+      toast({ title: "Digite um local para pesquisar", status: "warning", duration: 2000, isClosable: true });
+      return;
+    }
+    setIsSearchingLocation(true);
+    try {
+        // Caixa delimitadora (Bounding Box) aproximada para Uberaba
+        const uberabaViewbox = '-48.067,-19.866,-47.798,-19.600';
+
+        const response = await fetch(
+            `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}` +
+            `&format=json&addressdetails=1&limit=1&countrycodes=br` +
+            `&viewbox=${uberabaViewbox}&bounded=1` // Força a busca dentro da caixa
+        );
+
+      if (!response.ok) throw new Error(`Nominatim API error: ${response.status}`);
+      const data = await response.json();
+
+      if (!data || data.length === 0) {
+        throw new Error('Localização não encontrada em Uberaba. Tente ser mais específico ou use o mapa.');
+      }
+
+      const result = data[0];
+      const lat = parseFloat(result.lat);
+      const lng = parseFloat(result.lon);
+      const address = result.address || {};
+
+      setFormData(prev => ({
+        ...prev,
+        coordenadas: { lat, lng },
+        rua: address.road || address.street || address.pedestrian || result.display_name.split(',')[0] || '',
+        numero: address.house_number || '',
+        bairro: address.suburb || address.neighbourhood || address.quarter || '',
+        cidade: address.city || address.town || address.village || address.municipality || DEFAULT_CITY,
+        estado: address.state || DEFAULT_STATE,
+      }));
+
+      setMapCenter([lat, lng]);
+      toast({ title: "Localização encontrada!", status: "success", duration: 2000, isClosable: true });
+
+    } catch (error: any) {
+      console.error('Erro ao pesquisar localização:', error);
+      toast({
+        title: 'Erro ao pesquisar localização',
+        description: error.message,
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsSearchingLocation(false);
+    }
+  }, [searchQuery, toast]);
 
   const handleGetCurrentLocation = useCallback(() => {
     if (navigator.geolocation) {
@@ -156,71 +217,53 @@ export default function RelatarProblema() {
         },
         (error) => {
           console.error("Erro ao obter geolocalização:", error);
-          toast({
-            title: 'Erro ao obter localização',
-            description: 'Não foi possível obter sua localização. Verifique as permissões.',
-            status: 'error',
-            duration: 4000,
-            isClosable: true,
-          });
+          toast({ title: 'Erro ao obter localização', description: 'Não foi possível obter sua localização. Verifique as permissões.', status: 'error', duration: 4000, isClosable: true });
           setIsLoading(false);
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     } else {
-      toast({
-        title: 'Geolocalização não suportada',
-        status: 'warning',
-        duration: 3000,
-        isClosable: true,
-      });
+      toast({ title: 'Geolocalização não suportada', status: 'warning', duration: 3000, isClosable: true });
     }
   }, [getAddressFromCoords, toast]);
 
-  // 2. Modificar validateForm para incluir a validação da foto
   const validateForm = useCallback(() => {
-    let errors: { titulo?: string; descricao?: string; foto?: string } = {}; // Adicionar foto aqui
+    let errors: { titulo?: string; descricao?: string; foto?: string } = {};
     let isValid = true;
 
     if (!formData.titulo.trim()) {
-        errors.titulo = 'O título é obrigatório.';
-        isValid = false;
+      errors.titulo = 'O título é obrigatório.';
+      isValid = false;
     } else {
-        const { valido: tituloValido, mensagem: msgTitulo } = verificarConteudoInadequado(formData.titulo);
-        if (!tituloValido) {
-          errors.titulo = msgTitulo || 'O título contém palavras inadequadas.';
-          isValid = false;
-        }
+      const { valido, mensagem } = verificarConteudoInadequado(formData.titulo);
+      if (!valido) {
+        errors.titulo = mensagem || 'O título contém palavras inadequadas.';
+        isValid = false;
+      }
     }
 
-
     if (!formData.descricao.trim()) {
-        errors.descricao = 'A descrição é obrigatória.';
-        isValid = false;
+      errors.descricao = 'A descrição é obrigatória.';
+      isValid = false;
     } else {
-        const { valido: descricaoValida, mensagem: msgDescricao } = verificarConteudoInadequado(formData.descricao);
-        if (!descricaoValida) {
-          errors.descricao = msgDescricao || 'A descrição contém palavras inadequadas.';
-          isValid = false;
-        }
+      const { valido, mensagem } = verificarConteudoInadequado(formData.descricao);
+      if (!valido) {
+        errors.descricao = mensagem || 'A descrição contém palavras inadequadas.';
+        isValid = false;
+      }
     }
 
     if (!formData.tipo) {
-        // Você pode adicionar uma mensagem específica para o tipo se desejar,
-        // mas o handleSubmit já verifica os campos obrigatórios de forma geral.
-        // Se quiser uma mensagem no campo:
-        // errors.tipo = 'O tipo do problema é obrigatório.'; // Precisaria adicionar 'tipo' em validationErrors
-        isValid = false;
-    }
-
-    if (!formData.foto) { // Verificação da foto
-      errors.foto = 'Uma imagem é obrigatória para o relato.';
       isValid = false;
     }
 
+    // A validação da foto foi removida para torná-la opcional.
+    // Se uma foto for fornecida, você pode adicionar validações de tipo/tamanho aqui, se necessário.
+    // Exemplo: if (formData.foto && formData.foto.size > MAX_SIZE) { errors.foto = 'Imagem muito grande'; isValid = false; }
+
     setValidationErrors(errors);
     return isValid;
-  }, [formData.titulo, formData.descricao, formData.tipo, formData.foto]); // Adicionar formData.foto e formData.tipo
+  }, [formData.titulo, formData.descricao, formData.tipo, formData.foto]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -231,31 +274,13 @@ export default function RelatarProblema() {
       return;
     }
 
-    // 3. Ajustar handleSubmit para usar a nova validação
-    // A verificação de campos obrigatórios gerais pode ser removida ou ajustada
-    // já que validateForm agora cuida disso de forma mais específica.
-
-    // if (!formData.titulo || !formData.descricao || !formData.tipo || !formData.foto) { // Adicionada verificação de foto aqui também
-    //   toast({ title: 'Campos obrigatórios', description: 'Preencha todos os campos obrigatórios, incluindo a foto.', status: 'warning', duration: 3000, isClosable: true });
-    //   // Disparar a validação para mostrar os erros nos campos
-    //   validateForm();
-    //   return;
-    // }
-
-    if (!validateForm()) { // A chamada a validateForm já define os erros e retorna se é válido
-      toast({ title: 'Campos inválidos ou faltando', description: 'Verifique os campos destacados e forneça uma imagem.', status: 'error', duration: 3000, isClosable: true });
+    if (!validateForm()) {
+      toast({ title: 'Campos inválidos ou faltando', description: 'Verifique os campos destacados.', status: 'error', duration: 3000, isClosable: true });
       return;
     }
 
-    // O if acima já garante que formData.foto não é null, mas o TypeScript pode não inferir isso
-    // dentro do try/catch ou em outras funções. Por isso, mantemos a verificação ou usamos "!"
-    if (!formData.foto) {
-        // Esta verificação é redundante se validateForm funcionar corretamente,
-        // mas é uma salvaguarda.
-        toast({ title: 'Erro interno', description: 'A foto não foi processada corretamente.', status: 'error', duration: 3000, isClosable: true });
-        return;
-    }
-
+    // A verificação de foto obrigatória foi removida daqui, pois a foto agora é opcional.
+    // O serviço RelatosService.adicionarRelato já lida com a foto sendo null ou undefined.
 
     setIsLoading(true);
     try {
@@ -273,12 +298,10 @@ export default function RelatarProblema() {
         },
         usuarioId: auth.currentUser.uid,
       };
-      // formData.foto aqui não será null devido à validação
       await RelatosService.adicionarRelato(relatoParaEnviar, formData.foto);
       toast({ title: 'Problema relatado com sucesso!', status: 'success', duration: 3000, isClosable: true });
       navigate('/problemas');
-    } catch (error: any)
-    {
+    } catch (error: any) {
       console.error('Erro ao enviar relato:', error);
       toast({ title: 'Erro ao enviar relato', description: error.message, status: 'error', duration: 4000, isClosable: true });
     } finally {
@@ -291,34 +314,61 @@ export default function RelatarProblema() {
     return parts.join(', ');
   }, [formData.rua, formData.numero, formData.bairro, formData.cidade, formData.estado]);
 
-  // --- Definições de Cores para Modo Claro/Escuro ---
+  // --- Cores ---
   const headingColor = useColorModeValue('gray.700', 'whiteAlpha.900');
   const mapBorderColor = useColorModeValue('gray.200', 'gray.700');
-
   const addressBoxBg = useColorModeValue('blue.50', 'blue.800');
   const addressBoxBorder = useColorModeValue('blue.200', 'blue.700');
   const addressIconColor = useColorModeValue('blue.500', 'blue.300');
   const addressTextSemiboldColor = useColorModeValue('blue.700', 'blue.200');
   const addressTextSmColor = useColorModeValue('blue.600', 'blue.300');
-
   const formCardBg = useColorModeValue('white', 'gray.700');
   const formCardBorder = useColorModeValue('gray.100', 'gray.600');
   const formLabelColor = useColorModeValue('gray.600', 'gray.50');
-
-  const inputHoverBg = useColorModeValue("gray.200", "whiteAlpha.100"); // Ajustado para padrão Chakra dark filled hover
+  const inputHoverBg = useColorModeValue("gray.50", "whiteAlpha.100");
   const inputFocusBorderColor = useColorModeValue('blue.500', 'blue.300');
-
   const fileInputIconColor = useColorModeValue('gray.400', 'gray.500');
   const fileInputTextColor = useColorModeValue('gray.500', 'gray.400');
   const dividerBorderColor = useColorModeValue('gray.300', 'gray.500');
 
-  // --- Renderização com Cores Dinâmicas ---
   return (
     <Container maxW="container.lg" mt={{ base: "70px", md: "90px" }} py={{ base: 6, md: 10 }}>
       <VStack spacing={10} align="stretch">
         <Heading as="h1" size="xl" textAlign="center" color={headingColor} fontWeight="bold">
           Relatar um Novo Problema
         </Heading>
+
+        <FormControl>
+          <FormLabel htmlFor="search-location" fontWeight="semibold" color={formLabelColor}>Pesquisar Localização (Uberaba)</FormLabel>
+          <InputGroup size="lg">
+            <Input
+              id="search-location"
+              placeholder="Digite um endereço, praça ou ponto de referência (Ex: Av. Getúlio Vargas, Centro)"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSearchLocation();
+                }
+              }}
+              variant="filled"
+              _hover={{ bg: inputHoverBg }}
+              focusBorderColor={inputFocusBorderColor}
+            />
+            <InputRightElement h="100%">
+              <IconButton
+                aria-label="Pesquisar localização"
+                icon={<FaSearch />}
+                onClick={handleSearchLocation}
+                isLoading={isSearchingLocation}
+                size="md"
+                colorScheme="blue"
+                variant="ghost"
+              />
+            </InputRightElement>
+          </InputGroup>
+        </FormControl>
 
         <Box
           position="relative"
@@ -329,7 +379,8 @@ export default function RelatarProblema() {
           borderWidth="1px"
           borderColor={mapBorderColor}
         >
-          <MapContainer center={mapCenter} zoom={DEFAULT_ZOOM} style={{ height: '100%', width: '100%' }}>
+          <MapContainer center={mapCenter} zoom={DEFAULT_ZOOM} style={{ height: '100%', width: '100%' }} whenCreated={(mapInstance) => { mapRef.current = mapInstance; }}>
+            <ChangeMapView coords={mapCenter} />
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' />
             <Marker position={[formData.coordenadas.lat, formData.coordenadas.lng]} />
             <MapEvents onLocationSelect={handleMapClick} />
@@ -346,21 +397,12 @@ export default function RelatarProblema() {
             isRound
             size="lg"
             shadow="lg"
-            isLoading={isLoading && !formData.rua}
+            isLoading={isLoading && !isSearchingLocation}
           />
         </Box>
 
         {displayAddress && (
-          <Box
-            p={4}
-            borderWidth="1px"
-            borderRadius="lg"
-            bg={addressBoxBg}
-            borderColor={addressBoxBorder}
-            shadow="sm"
-            display="flex"
-            alignItems="center"
-          >
+          <Box p={4} borderWidth="1px" borderRadius="lg" bg={addressBoxBg} borderColor={addressBoxBorder} shadow="sm" display="flex" alignItems="center">
             <Icon as={FaMapMarkerAlt} color={addressIconColor} mr={3} w={5} h={5} />
             <Box>
               <Text fontWeight="semibold" color={addressTextSemiboldColor}>Localização Selecionada:</Text>
@@ -369,118 +411,55 @@ export default function RelatarProblema() {
           </Box>
         )}
 
-        <Box
-          as="form"
-          onSubmit={handleSubmit}
-          bg={formCardBg}
-          p={{ base: 6, md: 8 }}
-          borderRadius="xl"
-          shadow="xl"
-          borderWidth="1px"
-          borderColor={formCardBorder}
-        >
+        <Box as="form" onSubmit={handleSubmit} bg={formCardBg} p={{ base: 6, md: 8 }} borderRadius="xl" shadow="xl" borderWidth="1px" borderColor={formCardBorder}>
           <VStack spacing={6} align="stretch">
             <FormControl isRequired isInvalid={!!validationErrors.titulo}>
               <FormLabel htmlFor="titulo" fontWeight="semibold" color={formLabelColor}>Título do Problema</FormLabel>
-              <Input
-                id="titulo"
-                name="titulo"
-                value={formData.titulo}
-                onChange={handleChange}
-                placeholder="Ex: Buraco na calçada da Rua Principal"
-                variant="filled"
-                size="lg"
-                _hover={{ bg: inputHoverBg }}
-                focusBorderColor={inputFocusBorderColor}
-              />
+              <Input id="titulo" name="titulo" value={formData.titulo} onChange={handleChange} placeholder="Ex: Buraco na calçada da Rua Principal" variant="filled" size="lg" _hover={{ bg: inputHoverBg }} focusBorderColor={inputFocusBorderColor} />
               {validationErrors.titulo && <FormErrorMessage>{validationErrors.titulo}</FormErrorMessage>}
             </FormControl>
 
-            <FormControl isRequired /* Adicionar isInvalid e FormErrorMessage se quiser validação visual para tipo */>
+            <FormControl isRequired>
               <FormLabel htmlFor="tipo" fontWeight="semibold" color={formLabelColor}>Tipo do Problema</FormLabel>
-              <Select
-                id="tipo"
-                name="tipo"
-                value={formData.tipo}
-                onChange={handleChange}
-                placeholder="Selecione o tipo"
-                variant="filled"
-                size="lg"
-                 _hover={{ bg: inputHoverBg }}
-                focusBorderColor={inputFocusBorderColor}
-              >
-                {PROBLEM_TYPES.map(pt => (
-                  <option key={pt.value} value={pt.value}>{pt.label}</option>
-                ))}
+              <Select id="tipo" name="tipo" value={formData.tipo} onChange={handleChange} placeholder="Selecione o tipo" variant="filled" size="lg" _hover={{ bg: inputHoverBg }} focusBorderColor={inputFocusBorderColor}>
+                {PROBLEM_TYPES.map(pt => (<option key={pt.value} value={pt.value}>{pt.label}</option>))}
               </Select>
-              {/* Adicionar FormErrorMessage para 'tipo' se implementado em validationErrors */}
             </FormControl>
 
             <FormControl isRequired isInvalid={!!validationErrors.descricao}>
               <FormLabel htmlFor="descricao" fontWeight="semibold" color={formLabelColor}>Descrição Detalhada</FormLabel>
-              <Textarea
-                id="descricao"
-                name="descricao"
-                value={formData.descricao}
-                onChange={handleChange}
-                placeholder="Forneça detalhes sobre o problema..."
-                rows={5}
-                variant="filled"
-                size="lg"
-                _hover={{ bg: inputHoverBg }}
-                focusBorderColor={inputFocusBorderColor}
-              />
+              <Textarea id="descricao" name="descricao" value={formData.descricao} onChange={handleChange} placeholder="Forneça detalhes sobre o problema..." rows={5} variant="filled" size="lg" _hover={{ bg: inputHoverBg }} focusBorderColor={inputFocusBorderColor} />
               {validationErrors.descricao && <FormErrorMessage>{validationErrors.descricao}</FormErrorMessage>}
             </FormControl>
 
-            {/* 4. Ajustar FormControl da foto */}
             <FormControl isRequired isInvalid={!!validationErrors.foto}>
               <FormLabel htmlFor="foto-display" fontWeight="semibold" color={formLabelColor}>Foto do Problema</FormLabel>
               <InputGroup size="lg">
-                <InputLeftElement pointerEvents="none" h="100%">
-                  <Icon as={FaImage} color={fileInputIconColor} />
-                </InputLeftElement>
+                <InputLeftElement pointerEvents="none" h="100%"> <Icon as={FaImage} color={fileInputIconColor} /> </InputLeftElement>
                 <input type='file' accept="image/*" name="foto" ref={fileInputRef} style={{ display: 'none' }} onChange={handleImageChange} />
                 <Input
                   id="foto-display"
                   placeholder={formData.foto ? formData.foto.name : "Clique para selecionar uma imagem"}
                   onClick={() => fileInputRef.current?.click()}
-                  readOnly
-                  variant="filled"
-                  cursor="pointer"
-                  pl="2.8rem" /* Ajuste o padding se necessário para o ícone */
+                  readOnly variant="filled" cursor="pointer" pl="2.8rem"
                   _hover={{ bg: inputHoverBg }}
                   focusBorderColor={inputFocusBorderColor}
-                  // Adicionar estilo de borda de erro se inválido
                   borderColor={validationErrors.foto ? 'red.500' : undefined}
-                  _focus={{
-                    borderColor: validationErrors.foto ? 'red.500' : inputFocusBorderColor,
-                    boxShadow: validationErrors.foto ? `0 0 0 1px red.500` : undefined,
-                  }}
-
+                   _focus={{
+                       borderColor: validationErrors.foto ? 'red.500' : inputFocusBorderColor,
+                       boxShadow: validationErrors.foto ? `0 0 0 1px var(--chakra-colors-red-500)` : `0 0 0 1px ${inputFocusBorderColor}`,
+                   }}
                 />
               </InputGroup>
               {validationErrors.foto && <FormErrorMessage>{validationErrors.foto}</FormErrorMessage>}
-              {formData.foto && !validationErrors.foto && ( // Mostrar nome do arquivo apenas se não houver erro
-                <Text fontSize="xs" mt={1.5} color={fileInputTextColor}>
-                  Arquivo: {formData.foto.name} (Clique no campo acima para alterar)
-                </Text>
+              {formData.foto && !validationErrors.foto && (
+                <Text fontSize="xs" mt={1.5} color={fileInputTextColor}> Arquivo: {formData.foto.name} (Clique no campo acima para alterar) </Text>
               )}
             </FormControl>
 
             <Divider my={3} borderColor={dividerBorderColor} />
 
-            <Button
-              type="submit"
-              colorScheme="blue"
-              size="lg"
-              w="100%"
-              mt={2}
-              isLoading={isLoading}
-              loadingText="Enviando Relato..."
-              leftIcon={<Icon as={FaPaperPlane} />}
-              shadow="md"
-            >
+            <Button type="submit" colorScheme="blue" size="lg" w="100%" mt={2} isLoading={isLoading} loadingText="Enviando Relato..." leftIcon={<Icon as={FaPaperPlane} />} shadow="md" >
               Enviar Relato
             </Button>
           </VStack>

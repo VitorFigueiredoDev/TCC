@@ -85,15 +85,6 @@ export default function Profile() {
     },
   ];
 
-  const notificacoes = [
-    {
-      id: 1,
-      mensagem: 'Seu relato foi atualizado para "Em andamento"',
-      data: new Date(),
-      lida: false,
-    },
-  ];
-
   const handleSaveProfile = () => {
     toast({
       title: 'Perfil atualizado',
@@ -257,21 +248,7 @@ export default function Profile() {
             {/* Painel de Notificações */}
             <TabPanel>
               <VStack spacing={4} align="stretch">
-                {notificacoes.map((notificacao) => (
-                  <Card key={notificacao.id} bg={bgCard} borderWidth={1} borderColor={borderColor}>
-                    <CardBody>
-                      <HStack justify="space-between">
-                        <VStack align="start">
-                          <Text>{notificacao.mensagem}</Text>
-                          <Text fontSize="sm" color="gray.500">
-                            {format(notificacao.data, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                          </Text>
-                        </VStack>
-                        {!notificacao.lida && <Badge colorScheme="blue">Nova</Badge>}
-                      </HStack>
-                    </CardBody>
-                  </Card>
-                ))}
+                {/* Notificações removidas */}
               </VStack>
             </TabPanel>
 

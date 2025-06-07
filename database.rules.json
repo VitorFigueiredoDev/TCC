@@ -9,7 +9,7 @@
       "$relato_id": {
         ".read": true,
         ".write": "auth != null && (!data.exists() || data.child('usuarioId').val() === auth.uid || root.child('admins').child(auth.uid).exists())",
-        ".validate": "newData.hasChildren(['titulo', 'tipo', 'descricao', 'coordenadas', 'endereco', 'status', 'dataCriacao', 'usuarioId']) && newData.child('usuarioId').val() === auth.uid"
+        ".validate": "newData.hasChildren(['titulo', 'tipo', 'descricao', 'coordenadas', 'endereco', 'status', 'dataCriacao', 'usuarioId']) && (newData.child('usuarioId').val() === auth.uid || root.child('admins').child(auth.uid).exists())"
       }
     },
     "comentarios": {
@@ -25,6 +25,7 @@
       ".read": "auth != null && root.child('admins').child(auth.uid).child('permissionLevel').val() === 'superadmin'",
       ".write": "auth != null && root.child('admins').child(auth.uid).child('permissionLevel').val() === 'superadmin'",
       "$admin_id": {
+        ".read": "auth != null && (auth.uid === $admin_id || root.child('admins').child(auth.uid).child('permissionLevel').val() === 'superadmin')",
         ".validate": "newData.hasChildren(['email', 'permissionLevel', 'permissoes', 'dataCriacao'])"
       }
     },
@@ -45,6 +46,18 @@
       "$log_id": {
         ".validate": "newData.hasChildren(['acao', 'realizadoPor', 'data'])"
       }
+    },
+    "admin_logs": {
+      ".read": "auth != null && root.child('admins').child(auth.uid).exists()",
+      ".write": "auth != null && root.child('admins').child(auth.uid).exists()",
+      ".indexOn": ["data", "acao"],
+      "$log_id": {
+        ".validate": "newData.hasChildren(['acao', 'realizadoPor', 'data'])"
+      }
+    },
+    "notificacoes": {
+      ".read": "auth != null",
+      ".write": "auth != null"
     }
   }
 }

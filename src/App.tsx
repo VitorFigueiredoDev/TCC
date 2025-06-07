@@ -11,6 +11,7 @@ import Admin from './pages/Admin';
 import Home from './pages/Home';
 import Mapa from './pages/Mapa';
 import PrimeiroAdmin from './pages/PrimeiroAdmin';
+import Perfil from './pages/Perfil';
 import 'leaflet/dist/leaflet.css';
 import './styles/leaflet.css';
 
@@ -25,31 +26,39 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/cadastro" element={<Cadastro />} />
-            <Route 
-              path="/relatar" 
+            <Route
+              path="/relatar"
               element={
                 <ProtectedRoute>
                   <RelatarProblema />
                 </ProtectedRoute>
-              } 
+              }
             />
             <Route path="/problemas" element={<Problemas />} />
-            <Route 
-              path="/admin" 
+            <Route
+              path="/admin"
               element={
                 <ProtectedRoute>
                   <Admin />
                 </ProtectedRoute>
-              } 
+              }
             />
             <Route path="/mapa" element={<Mapa />} />
-            <Route 
-              path="/primeiro-admin" 
+            <Route
+              path="/primeiro-admin"
               element={
                 <ProtectedRoute>
                   <PrimeiroAdmin />
                 </ProtectedRoute>
-              } 
+              }
+            />
+            <Route
+              path="/perfil"
+              element={
+                <ProtectedRoute>
+                  <Perfil />
+                </ProtectedRoute>
+              }
             />
           </Routes>
         </Router>

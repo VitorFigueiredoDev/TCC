@@ -1,5 +1,12 @@
-import { ref, push, get, update, remove, set } from 'firebase/database';
-import { database } from '../config/firebase';
+import { ref, get, set, update, remove, push, query, orderByChild, equalTo } from 'firebase/database';
+import { database, auth } from '../config/firebase';
+import { cacheService } from './cacheService';
+import { v4 as uuidv4 } from 'uuid';
+
+console.log('UID logado:', auth.currentUser?.uid);
+auth.onAuthStateChanged((user) => {
+  console.log('UID onAuthStateChanged:', user?.uid);
+});
 
 export interface Relato {
   id?: string;
@@ -25,6 +32,7 @@ export interface Relato {
   dataAtualizacao?: string;
   atualizadoPor?: string;
   comentarios?: Comentario[];
+  prioridade?: 'alta' | 'media' | 'baixa';
 }
 
 export interface Comentario {
@@ -34,38 +42,6 @@ export interface Comentario {
   dataCriacao: string;
   nomeUsuario: string;
   isAdmin?: boolean;
-}
-
-import { cacheService } from './cacheService';
-import { v4 as uuidv4 } from 'uuid';
-
-// Chaves para cache
-const CACHE_KEYS = {
-  RELATOS: 'relatos',
-  PERFIL: (userId: string) => `perfil_${userId}`,
-  COMENTARIOS: (relatoId: string) => `comentarios_${relatoId}`
-};
-
-// Validações
-const validacoes = {
-  relato: (relato: Omit<Relato, 'id' | 'status' | 'dataCriacao'>) => {
-    if (!relato.titulo || relato.titulo.length < 5) {
-      throw new Error('O título deve ter pelo menos 5 caracteres');
-    }
-    if (!relato.descricao || relato.descricao.length < 10) {
-      throw new Error('A descrição deve ter pelo menos 10 caracteres');
-    }
-    if (!relato.tipo || !['buraco', 'iluminacao', 'lixo', 'calcada', 'outros'].includes(relato.tipo)) {
-      throw new Error('Tipo de relato inválido');
-    }
-    return true;
-  },
-  comentario: (comentario: Omit<Comentario, 'id' | 'dataCriacao'>) => {
-    if (!comentario.texto || comentario.texto.trim().length < 2) {
-      throw new Error('O comentário deve ter pelo menos 2 caracteres');
-    }
-    return true;
-  }
 }
 
 export interface PerfilUsuario {
@@ -91,13 +67,60 @@ export interface PerfilUsuario {
   };
 }
 
-// Adicionar métodos para gerenciar perfil
+const CACHE_KEYS = {
+  RELATOS: 'relatos',
+  PERFIL: (userId: string) => `perfil_${userId}`,
+  COMENTARIOS: (relatoId: string) => `comentarios_${relatoId}`,
+};
+
+const validacoes = {
+  relato: (relato: Omit<Relato, 'id' | 'status' | 'dataCriacao'>) => {
+    if (!relato.titulo || relato.titulo.length < 5) {
+      throw new Error('O título deve ter pelo menos 5 caracteres');
+    }
+    if (!relato.descricao || relato.descricao.length < 10) {
+      throw new Error('A descrição deve ter pelo menos 10 caracteres');
+    }
+    if (!relato.tipo || !['buraco', 'iluminacao', 'lixo', 'calcada', 'sinalizacao', 'outros'].includes(relato.tipo)) {
+      throw new Error('Tipo de relato inválido');
+    }
+    return true;
+  },
+  comentario: (comentario: Omit<Comentario, 'id' | 'dataCriacao'>) => {
+    if (!comentario.texto || comentario.texto.trim().length < 2) {
+      throw new Error('O comentário deve ter pelo menos 2 caracteres');
+    }
+    return true;
+  },
+};
+
 export const RelatosService = {
+  async getRelatosPorUsuario(userId: string) {
+    try {
+      const relatosRef = ref(database, 'relatos');
+      const relatosQuery = query(relatosRef, orderByChild('usuarioId'), equalTo(userId));
+      const snapshot = await get(relatosQuery);
+      
+      const relatos: Relato[] = [];
+      if (snapshot.exists()) {
+        snapshot.forEach((childSnapshot) => {
+          const relato = childSnapshot.val();
+          relato.id = childSnapshot.key;
+          relatos.push(relato);
+        });
+      }
+      return relatos;
+    } catch (error) {
+      console.error('Erro ao buscar relatos do usuário:', error);
+      throw error;
+    }
+  },
+
   async listarRelatos() {
     try {
-      // Tenta obter do cache
       const cachedRelatos = cacheService.get<Relato[]>(CACHE_KEYS.RELATOS);
       if (cachedRelatos) {
+        console.log('Retornando relatos do cache');
         return cachedRelatos;
       }
 
@@ -113,8 +136,8 @@ export const RelatosService = {
         });
       }
 
-      // Armazena no cache
       cacheService.set(CACHE_KEYS.RELATOS, relatos);
+      console.log('Relatos carregados do banco:', relatos);
       return relatos;
     } catch (error) {
       console.error('Erro ao listar relatos:', error);
@@ -124,14 +147,11 @@ export const RelatosService = {
 
   async adicionarRelato(relato: Omit<Relato, 'id' | 'status' | 'dataCriacao'>, fotoFile?: File) {
     try {
-      // Validar dados do relato
       validacoes.relato(relato);
 
       let fotoBase64 = '';
-      
-      // Converter a foto para Base64 se existir
       if (fotoFile) {
-        if (fotoFile.size > 5 * 1024 * 1024) { // 5MB
+        if (fotoFile.size > 5 * 1024 * 1024) {
           throw new Error('A foto não pode ser maior que 5MB');
         }
         if (!fotoFile.type.startsWith('image/')) {
@@ -146,7 +166,6 @@ export const RelatosService = {
         });
       }
 
-      // Criar o objeto do relato
       const novoRelato: Omit<Relato, 'id'> = {
         ...relato,
         foto: fotoBase64,
@@ -154,19 +173,15 @@ export const RelatosService = {
         dataCriacao: new Date().toISOString(),
       };
 
-      // Salvar no Realtime Database
       const relatosRef = ref(database, 'relatos');
       const novoRelatoRef = await push(relatosRef, novoRelato);
 
       const relatoCompleto = {
         id: novoRelatoRef.key,
-        ...novoRelato
+        ...novoRelato,
       };
 
-      // Atualizar cache
-      const relatosAtuais = cacheService.get<Relato[]>(CACHE_KEYS.RELATOS) || [];
-      cacheService.set(CACHE_KEYS.RELATOS, [...relatosAtuais, relatoCompleto]);
-
+      cacheService.remove(CACHE_KEYS.RELATOS);
       return relatoCompleto;
     } catch (error) {
       console.error('Erro ao adicionar relato:', error);
@@ -174,9 +189,15 @@ export const RelatosService = {
     }
   },
 
-
-  async atualizarStatus(id: string, atualizacao: { status: Relato['status']; resposta?: string; prioridade?: 'alta' | 'media' | 'baixa' }) {
+  async atualizarStatus(id: string, atualizacao: { status: Relato['status']; prioridade?: 'alta' | 'media' | 'baixa'; resposta?: string }) {
     try {
+      console.log('Chamando atualizarStatus para relato:', id, 'com dados:', atualizacao);
+      console.log('Usuário atual:', auth.currentUser?.uid);
+
+      if (!auth.currentUser) {
+        throw new Error('Usuário não autenticado');
+      }
+
       if (!['pendente', 'em_andamento', 'resolvido'].includes(atualizacao.status)) {
         throw new Error('Status inválido');
       }
@@ -192,27 +213,65 @@ export const RelatosService = {
         throw new Error('Relato não encontrado');
       }
 
+      const relato = snapshot.val();
+      console.log('Dados do relato:', relato);
+
+      const admin = auth.currentUser.uid;
+
       const dadosAtualizacao = {
+        titulo: relato.titulo,
+        tipo: relato.tipo,
+        descricao: relato.descricao,
+        coordenadas: relato.coordenadas,
+        endereco: relato.endereco,
         status: atualizacao.status,
+        dataCriacao: relato.dataCriacao,
+        usuarioId: relato.usuarioId,
         dataAtualizacao: new Date().toISOString(),
-        ...(atualizacao.resposta && { resposta: atualizacao.resposta }),
-        ...(atualizacao.prioridade && { prioridade: atualizacao.prioridade })
+        atualizadoPor: admin,
+        ...(relato.foto && { foto: relato.foto }),
+        ...(atualizacao.prioridade !== undefined ? { prioridade: atualizacao.prioridade } : {}),
+        ...(atualizacao.resposta !== undefined ? { resposta: atualizacao.resposta } : {}),
       };
-      
+
+      console.log('Payload de atualização (com resposta):', dadosAtualizacao);
       await update(relatoRef, dadosAtualizacao);
 
-      // Atualizar cache
       const relatosAtuais = cacheService.get<Relato[]>(CACHE_KEYS.RELATOS);
       if (relatosAtuais) {
-        const relatosAtualizados = relatosAtuais.map(r => 
-          r.id === id ? { ...r, ...atualizacao } : r
+        const relatosAtualizados = relatosAtuais.map(r =>
+          r.id === id ? { ...r, ...atualizacao, dataAtualizacao: dadosAtualizacao.dataAtualizacao, atualizadoPor: admin } : r
         );
         cacheService.set(CACHE_KEYS.RELATOS, relatosAtualizados);
       }
 
+      console.log('Status atualizado com sucesso para relato:', id);
       return true;
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
+      throw error;
+    }
+  },
+
+  async atualizarRelato(id: string, dados: Partial<Omit<Relato, 'id' | 'usuarioId' | 'dataCriacao'>>) {
+    try {
+      const relatoRef = ref(database, `relatos/${id}`);
+      const snapshot = await get(relatoRef);
+      if (!snapshot.exists()) {
+        throw new Error('Relato não encontrado');
+      }
+      const relatoAntigo = snapshot.val();
+      // Mesclar todos os campos antigos com os novos
+      const dadosAtualizacao = {
+        ...relatoAntigo,
+        ...dados,
+        dataAtualizacao: new Date().toISOString(),
+      };
+      await update(relatoRef, dadosAtualizacao);
+      cacheService.remove(CACHE_KEYS.RELATOS);
+      return true;
+    } catch (error) {
+      console.error('Erro ao atualizar relato:', error);
       throw error;
     }
   },
@@ -221,6 +280,7 @@ export const RelatosService = {
     try {
       const relatoRef = ref(database, `relatos/${id}`);
       await remove(relatoRef);
+      cacheService.remove(CACHE_KEYS.RELATOS);
       return true;
     } catch (error) {
       console.error('Erro ao excluir relato:', error);
@@ -229,12 +289,17 @@ export const RelatosService = {
   },
 
   async isAdmin(user: any): Promise<boolean> {
-    if (!user) return false;
+    if (!user) {
+      console.log('Nenhum usuário fornecido para verificar status de admin');
+      return false;
+    }
     
     try {
       const adminRef = ref(database, `admins/${user.uid}`);
       const snapshot = await get(adminRef);
-      return snapshot.exists();
+      const isAdmin = snapshot.exists();
+      console.log(`Verificação de admin para ${user.uid}: ${isAdmin}`);
+      return isAdmin;
     } catch (error) {
       console.error('Erro ao verificar status de admin:', error);
       return false;
@@ -246,8 +311,15 @@ export const RelatosService = {
       const adminRef = ref(database, `admins/${userId}`);
       await set(adminRef, {
         email,
-        dataCriacao: new Date().toISOString()
+        dataCriacao: new Date().toISOString(),
+        permissionLevel: 'admin',
+        permissoes: {
+          editarStatus: true,
+          excluirRelatos: true,
+          gerenciarAdmins: false,
+        },
       });
+      console.log(`Admin adicionado: ${userId}`);
       return true;
     } catch (error) {
       console.error('Erro ao adicionar admin:', error);
@@ -259,6 +331,7 @@ export const RelatosService = {
     try {
       const adminRef = ref(database, `admins/${userId}`);
       await remove(adminRef);
+      console.log(`Admin removido: ${userId}`);
       return true;
     } catch (error) {
       console.error('Erro ao remover admin:', error);
@@ -272,7 +345,7 @@ export const RelatosService = {
       const novoComentario = {
         ...comentario,
         id: uuidv4(),
-        dataCriacao: new Date().toISOString()
+        dataCriacao: new Date().toISOString(),
       };
       
       await push(comentariosRef, novoComentario);
@@ -299,7 +372,7 @@ export const RelatosService = {
       const perfilRef = ref(database, `usuarios/${userId}/perfil`);
       await update(perfilRef, {
         ...dados,
-        dataAtualizacao: new Date().toISOString()
+        dataAtualizacao: new Date().toISOString(),
       });
       return true;
     } catch (error) {
@@ -317,5 +390,5 @@ export const RelatosService = {
       console.error('Erro ao obter perfil:', error);
       throw error;
     }
-  }
+  },
 };

@@ -36,6 +36,7 @@ import {
   FaBars,
   FaHome,
   FaUserCircle,
+  FaBell
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
@@ -177,7 +178,7 @@ export function Header() {
                   <MenuItem icon={<FaUserCircle />} onClick={() => navigateAndClose('/perfil')}>
                     Meu Perfil
                   </MenuItem>
-                  <MenuItem icon={<FaSignOutAlt />} onClick={handleLogout} color={menuItemLogoutColor}> {/* Usando a variável */}
+                  <MenuItem icon={<FaSignOutAlt />} onClick={handleLogout} color={menuItemLogoutColor}>
                     Sair
                   </MenuItem>
                 </MenuList>

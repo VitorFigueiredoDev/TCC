@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import Fuse from 'fuse.js';
 import {
   Box,
   Container,
@@ -62,6 +63,7 @@ const TIPO_OPTIONS = [
   { value: 'iluminacao', label: 'Iluminação Pública' },
   { value: 'lixo', label: 'Lixo/Entulho' },
   { value: 'calcada', label: 'Calçada Danificada' },
+  { value: 'sinalizacao', label: 'Problema de Sinalização' },
 ];
 
 const STATUS_OPTIONS = [
@@ -76,6 +78,7 @@ const MAP_TIPO_TO_IMG: Record<string, string> = {
   iluminacao: '/imagens/Problema de Iluminação.jpg',
   lixo: '/imagens/Descarte irregular de Lixo.jpg',
   calcada: '/imagens/Calçada Danificada.jpg',
+  sinalizacao: '/imagens/problema sinlizaçao.jpg',
   outros: '/imagens/Outros.jpg', // Fallback
 };
 
@@ -87,6 +90,7 @@ export default function Problemas() {
   const [busca, setBusca] = useState('');
   const navigate = useNavigate();
   const toast = useToast();
+  const [fuse, setFuse] = useState<Fuse<Relato> | null>(null);
 
   // Cores para tema claro/escuro (Hooks chamados incondicionalmente no topo)
   const cardBgColor = useColorModeValue('white', 'gray.700');
@@ -121,6 +125,17 @@ export default function Problemas() {
     carregarProblemas();
   }, [toast]);
 
+  useEffect(() => {
+    if (problemas.length > 0) {
+      const fuseOptions = {
+        keys: ['titulo', 'descricao', 'endereco.rua', 'endereco.bairro'],
+        includeScore: true,
+        threshold: 0.4, // Ajuste o threshold conforme necessário
+      };
+      setFuse(new Fuse(problemas, fuseOptions));
+    }
+  }, [problemas]);
+
   const getStatusColorScheme = (status: string): string => {
     const colors: Record<string, string> = {
       pendente: 'yellow',
@@ -132,18 +147,32 @@ export default function Problemas() {
   };
 
   const problemasFiltrados = useMemo(() => {
-    return problemas.filter(problema => {
-      const matchTipo = !filtroTipo || problema.tipo === filtroTipo;
-      const matchStatus = !filtroStatus || problema.status === filtroStatus;
+    let resultados = problemas;
+
+    // Aplicar filtros de tipo e status primeiro
+    if (filtroTipo) {
+      resultados = resultados.filter(problema => problema.tipo === filtroTipo);
+    }
+    if (filtroStatus) {
+      resultados = resultados.filter(problema => problema.status === filtroStatus);
+    }
+
+    // Aplicar busca com Fuse.js se houver termo de busca e fuse estiver inicializado
+    if (busca.trim() && fuse) {
+      const fuseResult = fuse.search(busca.trim());
+      resultados = fuseResult.map(result => result.item);
+    } else if (busca.trim()) {
+      // Fallback para busca simples se fuse não estiver pronto ou busca for simples demais
       const searchLower = busca.toLowerCase();
-      const matchBusca = !busca ||
+      resultados = resultados.filter(problema =>
         problema.titulo?.toLowerCase().includes(searchLower) ||
         problema.descricao?.toLowerCase().includes(searchLower) ||
         problema.endereco?.rua?.toLowerCase().includes(searchLower) ||
-        problema.endereco?.bairro?.toLowerCase().includes(searchLower);
-      return matchTipo && matchStatus && matchBusca;
-    });
-  }, [problemas, filtroTipo, filtroStatus, busca]);
+        problema.endereco?.bairro?.toLowerCase().includes(searchLower)
+      );
+    }
+    return resultados;
+  }, [problemas, filtroTipo, filtroStatus, busca, fuse]);
 
   const formatarCoordenadas = (problema: Relato) => {
     let lat, lng;

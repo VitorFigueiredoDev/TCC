@@ -11,6 +11,7 @@ const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
 const Perfil = lazy(() => import('./pages/Perfil'));
 const PrimeiroAdmin = lazy(() => import('./pages/PrimeiroAdmin'));
+const Notificacoes = lazy(() => import('./pages/Notificacoes'));
 
 export default function AppRoutes() {
   return (
@@ -28,6 +29,7 @@ export default function AppRoutes() {
           <Route path="/problemas" element={<ListaProblemas />} />
           <Route path="/perfil" element={<Perfil />} />
           <Route path="/primeiro-admin" element={<PrimeiroAdmin />} />
+          <Route path="/notificacoes" element={<Notificacoes />} />
         </Routes>
       </Suspense>
     </Layout>
