@@ -27,7 +27,7 @@ import {
   Divider
 } from '@chakra-ui/react';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
-import { FaHome, FaExclamationTriangle, FaList, FaBars, FaSun, FaMoon, FaUserCog, FaSignOutAlt } from 'react-icons/fa';
+import { FaHome, FaList, FaBars, FaSun, FaMoon, FaUserCog, FaSignOutAlt } from 'react-icons/fa';
 import { auth } from '../config/firebase';
 import { useEffect, useState } from 'react';
 import { RelatosService } from '../services/relatosService';
@@ -129,8 +129,12 @@ export function Layout({ children }: LayoutProps) {
                 alignItems="center"
                 letterSpacing="tight"
               >
-                <Box as={FaExclamationTriangle} mr={{ base: 0, sm: 2 }} color={accentColor} />
-                <Text display={{ base: "none", sm: "block" }}>CidadeAlerta</Text>
+                <Box as="span" mr={{ base: 0, sm: 2 }} display="flex" alignItems="center">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="red" xmlns="http://www.w3.org/2000/svg">
+                    <polygon points="10,2 18,18 2,18" />
+                  </svg>
+                </Box>
+                <Text display={{ base: "none", sm: "block" }}>FalaTriângulo</Text>
               </Heading>
             </Box>
 
@@ -168,7 +172,7 @@ export function Layout({ children }: LayoutProps) {
                 fontSize={{ base: "sm", md: "md" }}
               >
                 <HStack spacing={2}>
-                  <FaExclamationTriangle />
+                  <FaList />
                   <Text>Relatar</Text>
                 </HStack>
               </ChakraLink>
@@ -311,7 +315,7 @@ export function Layout({ children }: LayoutProps) {
                 _hover={{ bg: activeBgColor, color: accentColor }}
               >
                 <HStack spacing={3}>
-                  <FaExclamationTriangle />
+                  <FaList />
                   <Text>Relatar Problema</Text>
                 </HStack>
               </ChakraLink>

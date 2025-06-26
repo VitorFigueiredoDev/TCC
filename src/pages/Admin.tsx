@@ -54,7 +54,7 @@ import {
   Icon,
 } from '@chakra-ui/react';
 import { useState, useEffect, useMemo } from 'react';
-import { FaSearch, FaEdit, FaTrash, FaExclamationTriangle, FaUserShield, FaHistory, FaInfoCircle } from 'react-icons/fa';
+import { FaSearch, FaEdit, FaTrash, FaExclamationTriangle, FaUserShield, FaHistory, FaInfoCircle, FaMapMarkerAlt } from 'react-icons/fa';
 import { RelatosService } from '../services/relatosService';
 import { AdminService } from '../services/adminService';
 import { auth } from '../config/firebase';
@@ -372,14 +372,7 @@ export default function Admin() {
         <Tabs>
           <TabList>
             <Tab><HStack><FaExclamationTriangle /><Text>Relatos</Text></HStack></Tab>
-            {adminPermissoes?.permissionLevel === 'superadmin' && (
-              <>
-                <Tab><HStack><FaUserShield /><Text>Administradores</Text></HStack></Tab>
-                <Tab><HStack><FaHistory /><Text>Logs</Text></HStack></Tab>
-              </>
-            )}
           </TabList>
-
           <TabPanels>
             <TabPanel>
               <VStack spacing={8} align="stretch">
@@ -531,19 +524,38 @@ export default function Admin() {
                             <Divider />
                             <HStack spacing={4} justify="flex-end">
                               {adminPermissoes?.permissoes.editarStatus && (
-                                <Button
-                                  leftIcon={<FaEdit />}
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedRelato(relato);
-                                    setNovoStatus(relato.status);
-                                    setNovaPrioridade(relato.prioridade || 'media');
-                                    setResposta(relato.resposta || '');
-                                    onOpen();
-                                  }}
-                                >
-                                  Gerenciar
-                                </Button>
+                                <>
+                                  <Button
+                                    leftIcon={<FaEdit />}
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedRelato(relato);
+                                      setNovoStatus(relato.status);
+                                      setNovaPrioridade(relato.prioridade || 'media');
+                                      setResposta(relato.resposta || '');
+                                      onOpen();
+                                    }}
+                                  >
+                                    Gerenciar
+                                  </Button>
+                                  <IconButton
+                                    aria-label="Ver no mapa"
+                                    icon={<FaMapMarkerAlt />}
+                                    colorScheme="blue"
+                                    variant="outline"
+                                    size="sm"
+                                    borderRadius="full"
+                                    onClick={() => {
+                                      const coords = (relato as any).coordenadas;
+                                      let coordenadas = undefined;
+                                      if (coords && typeof coords.lat === 'number' && typeof coords.lng === 'number') {
+                                        coordenadas = { latitude: coords.lat, longitude: coords.lng };
+                                      }
+                                      navigate('/mapa', { state: { selectedProblem: { ...relato, coordenadas } } });
+                                    }}
+                                    title="Ver localização no mapa"
+                                  />
+                                </>
                               )}
                               {adminPermissoes?.permissoes.excluirRelatos && (
                                 <IconButton
@@ -593,6 +605,25 @@ export default function Admin() {
                             <Badge colorScheme="yellow" fontSize="md" px={3} py={1} borderRadius="lg" fontWeight="bold">
                               Prioridade {selectedRelato?.prioridade?.charAt(0).toUpperCase() + selectedRelato?.prioridade?.slice(1)}
                             </Badge>
+                            {selectedRelato && (
+                              <IconButton
+                                aria-label="Ver no mapa"
+                                icon={<FaMapMarkerAlt />}
+                                colorScheme="blue"
+                                variant="outline"
+                                size="sm"
+                                borderRadius="full"
+                                onClick={() => {
+                                  const coords = (selectedRelato as any).coordenadas;
+                                  let coordenadas = undefined;
+                                  if (coords && typeof coords.lat === 'number' && typeof coords.lng === 'number') {
+                                    coordenadas = { latitude: coords.lat, longitude: coords.lng };
+                                  }
+                                  navigate('/mapa', { state: { selectedProblem: { ...selectedRelato, coordenadas } } });
+                                }}
+                                title="Ver localização no mapa"
+                              />
+                            )}
                           </HStack>
                         </Box>
                         <FormControl id="status-select">
@@ -654,91 +685,6 @@ export default function Admin() {
                 </Modal>
               </VStack>
             </TabPanel>
-
-            {adminPermissoes?.permissionLevel === 'superadmin' && (
-              <TabPanel>
-                <VStack spacing={4} align="stretch">
-                  <Heading size="md">Gerenciar Administradores</Heading>
-                  <Table variant="simple">
-                    <Thead>
-                      <Tr>
-                        <Th>Email</Th>
-                        <Th>Nível</Th>
-                        <Th>Permissões</Th>
-                        <Th>Último Acesso</Th>
-                        <Th>Ações</Th>
-                      </Tr>
-                    </Thead>
-                    <Tbody>
-                      {adminPermissoes?.adminList?.map((admin) => (
-                        <Tr key={admin.id}>
-                          <Td>{admin.email}</Td>
-                          <Td>{admin.permissionLevel}</Td>
-                          <Td>
-                            <VStack align="start" spacing={2}>
-                              <FormControl display="flex" alignItems="center">
-                                <FormLabel mb="0" fontSize="sm">Gerenciar Admins</FormLabel>
-                                <Switch isChecked={admin.permissoes.gerenciarAdmins} isDisabled={admin.permissionLevel === 'superadmin'} />
-                              </FormControl>
-                              <FormControl display="flex" alignItems="center">
-                                <FormLabel mb="0" fontSize="sm">Excluir Relatos</FormLabel>
-                                <Switch isChecked={admin.permissoes.excluirRelatos} isDisabled={admin.permissionLevel === 'superadmin'} />
-                              </FormControl>
-                            </VStack>
-                          </Td>
-                          <Td>{new Date(admin.ultimoAcesso).toLocaleDateString('pt-BR')}</Td>
-                          <Td>
-                            <HStack spacing={2}>
-                              <IconButton
-                                aria-label="Editar admin"
-                                icon={<FaEdit />}
-                                size="sm"
-                                isDisabled={admin.permissionLevel === 'superadmin'}
-                              />
-                              <IconButton
-                                aria-label="Remover admin"
-                                icon={<FaTrash />}
-                                size="sm"
-                                colorScheme="red"
-                                isDisabled={admin.permissionLevel === 'superadmin'}
-                              />
-                            </HStack>
-                          </Td>
-                        </Tr>
-                      ))}
-                    </Tbody>
-                  </Table>
-                </VStack>
-              </TabPanel>
-            )}
-
-            {adminPermissoes?.permissionLevel === 'superadmin' && (
-              <TabPanel>
-                <VStack spacing={4} align="stretch">
-                  <Heading size="md">Logs de Auditoria</Heading>
-                  <Table variant="simple">
-                    <Thead>
-                      <Tr>
-                        <Th>Data</Th>
-                        <Th>Usuário</Th>
-                        <Th>Ação</Th>
-                        <Th>Detalhes</Th>
-                      </Tr>
-                    </Thead>
-                    <Tbody>
-                      {logs.map(log => (
-                        <Tr key={log.id}>
-                          <Td>{new Date(log.data).toLocaleString('pt-BR')}</Td>
-                          <Td>{log.usuarioId}</Td>
-                          <Td>{log.acao}</Td>
-                          <Td>{log.detalhes.tipo}</Td>
-                        </Tr>
-                      ))}
-                    </Tbody>
-                  </Table>
-                </VStack>
-              </TabPanel>
-            )}
           </TabPanels>
         </Tabs>
       </VStack>

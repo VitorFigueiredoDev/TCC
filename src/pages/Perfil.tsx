@@ -11,16 +11,17 @@ import {
 } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { User } from 'firebase/auth';
-import { 
-  FaSignOutAlt, FaEdit, FaExclamationCircle, FaListAlt, 
+import {
+  FaSignOutAlt, FaEdit, FaExclamationCircle, FaListAlt,
   FaUserCircle, FaTrash, FaCalendarAlt, FaMapMarkerAlt,
   FaEye, FaSave, FaTimes, FaClock, FaCheckCircle,
   FaHourglassHalf, FaFlag, FaBell, FaComments
 } from 'react-icons/fa';
 import { auth } from '../config/firebase';
 import { RelatosService, Relato as RelatoType } from '../services/relatosService';
-import { ref, onValue } from 'firebase/database';
+import { ref, onValue, get } from 'firebase/database';
 import { database } from '../config/firebase';
+import { updateProfile, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 
 // Interface para o estado do usuário
 interface UserProfile extends User {}
@@ -32,20 +33,6 @@ interface Endereco {
   bairro: string;
   cidade: string;
   estado: string;
-}
-
-// Interface ajustada para Relato
-interface Relato {
-  id: string;
-  titulo: string;
-  descricao: string;
-  status: 'pendente' | 'em_andamento' | 'resolvido';
-  prioridade: 'alta' | 'media' | 'baixa';
-  tipo: string;
-  dataCriacao: string;
-  imagem?: string;
-  endereco: Endereco;
-  resposta?: string;
 }
 
 // Mapeamento de tipos para imagens (igual ao Admin)
@@ -119,10 +106,10 @@ const genericProblemSvg = `
 `;
 
 const RelatoItemCard: React.FC<{
-  relato: Relato;
+  relato: RelatoType;
   onDelete: (id: string) => void;
-  onEdit?: (relato: Relato) => void;
-  onConversa?: (relato: Relato) => void;
+  onEdit?: (relato: RelatoType) => void;
+  onConversa?: (relato: RelatoType) => void;
 }> = ({ relato, onDelete, onEdit, onConversa }) => {
   const cardBg = useColorModeValue('white', 'gray.800');
   const cardBorderColor = useColorModeValue('gray.200', 'gray.700');
@@ -130,19 +117,19 @@ const RelatoItemCard: React.FC<{
   const headingColor = useColorModeValue('gray.800', 'white');
   const accentColor = useColorModeValue('blue.500', 'blue.300');
   const overlayGradient = useColorModeValue(
-    'linear(to-t, blackAlpha.600, transparent)',
-    'linear(to-t, blackAlpha.800, transparent)'
+    'linear(to-t, blackAlpha.700, transparent)',
+    'linear(to-t, blackAlpha.900, transparent)'
   );
   const toast = useToast();
   const navigate = useNavigate();
 
   const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(genericProblemSvg)}`;
-  const imageSrc = relato.imagem || MAP_TIPO_TO_IMG[relato.tipo] || MAP_TIPO_TO_IMG.outros || svgUrl;
+  const imageSrc = relato.foto || MAP_TIPO_TO_IMG[relato.tipo] || MAP_TIPO_TO_IMG.outros || svgUrl;
 
   const handleDelete = async () => {
     if (window.confirm('Tem certeza que deseja excluir este relato?')) {
       try {
-        await onDelete(relato.id);
+        await onDelete(relato.id || '');
         toast({
           title: 'Relato excluído',
           description: 'O relato foi excluído com sucesso.',
@@ -167,14 +154,14 @@ const RelatoItemCard: React.FC<{
     <Card
       borderWidth="1px"
       borderColor={cardBorderColor}
-      bg={cardBg}
-      shadow="lg"
+      bgGradient={useColorModeValue('linear(to-br, blue.50, purple.50, pink.50)', 'linear(to-br, gray.900, blue.900, purple.900)')}
+      shadow="2xl"
       borderRadius="2xl"
       overflow="hidden"
       transition="all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
-      _hover={{ 
-        shadow: '2xl', 
-        transform: 'translateY(-4px)',
+      _hover={{
+        shadow: '3xl',
+        transform: 'translateY(-6px) scale(1.02)',
         borderColor: accentColor
       }}
       position="relative"
@@ -196,7 +183,7 @@ const RelatoItemCard: React.FC<{
           bottom={0}
           bgGradient={overlayGradient}
         />
-        <HStack position="absolute" top={3} right={3} spacing={2}>
+        <HStack position="absolute" top={3} right={3} spacing={2} zIndex={2}>
           <Badge
             colorScheme={getStatusColor(relato.status)}
             variant="solid"
@@ -228,24 +215,26 @@ const RelatoItemCard: React.FC<{
             {relato.prioridade}
           </Badge>
         </HStack>
-        <Box position="absolute" bottom={3} left={3} right={3}>
-          <Heading 
-            size="md" 
-            color="white" 
+        <Box position="absolute" bottom={3} left={3} right={3} zIndex={2}>
+          <Heading
+            size="md"
+            bgGradient={useColorModeValue('linear(to-r, blue.600, purple.600)', 'linear(to-r, blue.300, purple.300)')}
+            bgClip="text"
+            color="white"
             noOfLines={2}
             textShadow="0 2px 4px rgba(0,0,0,0.6)"
-            fontWeight="bold"
+            fontWeight="extrabold"
           >
             {relato.titulo}
           </Heading>
         </Box>
       </Box>
-      <CardBody p={5}>
-        <VStack align="stretch" spacing={4}>
-          <Text 
-            fontSize="sm" 
-            color={textColor} 
-            noOfLines={3} 
+      <CardBody p={6}>
+        <VStack align="stretch" spacing={5}>
+          <Text
+            fontSize="sm"
+            color={textColor}
+            noOfLines={3}
             lineHeight="1.5"
             minH="60px"
           >
@@ -298,6 +287,9 @@ const RelatoItemCard: React.FC<{
                 colorScheme="blue"
                 size="sm"
                 variant="outline"
+                borderRadius="xl"
+                fontWeight="bold"
+                _hover={{ bg: 'blue.50', transform: 'scale(1.05)' }}
                 onClick={() => onConversa?.(relato)}
               >
                 Conversa
@@ -313,17 +305,17 @@ const RelatoItemCard: React.FC<{
 // Custom hook for mobile detection
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(false);
-  
+
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
-    
+
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
-  
+
   return isMobile;
 };
 
@@ -417,11 +409,19 @@ const PullToRefresh: React.FC<{
   );
 };
 
+// [1] Lista de avatares pré-definidos (apenas 3, usando imagens locais corretas)
+const AVATAR_OPTIONS = [
+  '/imagens/CEMIG.jpg',
+  '/imagens/CODAU.jpg',
+  '/imagens/PREFEITURA.jpg',
+];
+
 export default function Perfil() {
   // Todos os hooks devem estar no topo, antes de qualquer return condicional
   const navigate = useNavigate();
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const { isOpen: isEditProfileOpen, onOpen: onEditProfileOpen, onClose: onEditProfileClose } = useDisclosure();
   const headingColor = useColorModeValue('gray.800', 'white');
   const textColor = useColorModeValue('gray.600', 'gray.300');
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -436,11 +436,11 @@ export default function Perfil() {
 
   // Estados
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [relatosPessoais, setRelatosPessoais] = useState<Relato[]>([]);
+  const [relatosPessoais, setRelatosPessoais] = useState<RelatoType[]>([]);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [isLoadingRelatos, setIsLoadingRelatos] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedRelato, setSelectedRelato] = useState<Relato | null>(null);
+  const [selectedRelato, setSelectedRelato] = useState<RelatoType | null>(null);
   const [tituloEditado, setTituloEditado] = useState('');
   const [descricaoEditada, setDescricaoEditada] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
@@ -449,6 +449,14 @@ export default function Perfil() {
   const [respostaSelecionada, setRespostaSelecionada] = useState<string | null>(null);
   const [statusSelecionado, setStatusSelecionado] = useState<string | null>(null);
   const [prioridadeSelecionada, setPrioridadeSelecionada] = useState<string | null>(null);
+  const [editNome, setEditNome] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editSenhaAtual, setEditSenhaAtual] = useState('');
+  const [editNovaSenha, setEditNovaSenha] = useState('');
+  const [editAvatar, setEditAvatar] = useState<string | null>(null);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [isEditLoading, setIsEditLoading] = useState(false);
+  const [adminNome, setAdminNome] = useState<string>('Municipio de Uberaba');
 
   // Todos os hooks acima do return condicional
   useEffect(() => {
@@ -491,6 +499,27 @@ export default function Perfil() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (modalConversaOpen && selectedRelato && selectedRelato.atualizadoPor) {
+      const fetchAdminNome = async () => {
+        try {
+          const adminRef = ref(database, `admins/${selectedRelato.atualizadoPor}`);
+          const snapshot = await get(adminRef);
+          if (snapshot.exists() && snapshot.val().nome) {
+            setAdminNome(snapshot.val().nome);
+          } else {
+            setAdminNome('Admin');
+          }
+        } catch {
+          setAdminNome('Admin');
+        }
+      };
+      fetchAdminNome();
+    } else {
+      setAdminNome('Admin');
+    }
+  }, [modalConversaOpen, selectedRelato]);
+
   const handleLogout = useCallback(async () => {
     try {
       await auth.signOut();
@@ -500,7 +529,7 @@ export default function Perfil() {
     }
   }, [navigate]);
 
-  const handleEditRelato = useCallback((relato: Relato) => {
+  const handleEditRelato = useCallback((relato: RelatoType) => {
     setSelectedRelato(relato);
     setTituloEditado(relato.titulo);
     setDescricaoEditada(relato.descricao);
@@ -512,7 +541,7 @@ export default function Perfil() {
 
     setIsUpdating(true);
     try {
-      await RelatosService.atualizarRelato(selectedRelato.id, {
+      await RelatosService.atualizarRelato(selectedRelato.id || '', {
         titulo: tituloEditado,
         descricao: descricaoEditada,
       });
@@ -574,7 +603,7 @@ export default function Perfil() {
 
   const handleStatusChange = useCallback(async (id: string, newStatus: string) => {
     if (!user?.uid) return;
-    
+
     if (!isAdmin && !relatosPessoais.some(r => r.id === id)) {
       toast({
         title: 'Erro de permissão',
@@ -609,7 +638,7 @@ export default function Perfil() {
 
   const handleRefresh = useCallback(async () => {
     if (!user?.uid) return;
-    
+
     setIsLoadingRelatos(true);
     try {
       const userRelatos = await RelatosService.getRelatosPorUsuario(user.uid);
@@ -636,6 +665,46 @@ export default function Perfil() {
     }
   }, [user, toast]);
 
+  const handleOpenEditProfile = useCallback(() => {
+    setEditNome(user?.displayName || '');
+    setEditEmail(user?.email || '');
+    setEditSenhaAtual('');
+    setEditNovaSenha('');
+    setEditAvatar(user?.photoURL || null);
+    setShowAvatarPicker(false);
+    onEditProfileOpen();
+  }, [user, onEditProfileOpen]);
+
+  const handleSaveProfileEdit = async () => {
+    if (!user) return;
+    setIsEditLoading(true);
+    try {
+      let photoURL = editAvatar || user.photoURL;
+      if (editNome !== user.displayName || editAvatar !== user.photoURL) {
+        await updateProfile(user, { displayName: editNome, photoURL });
+      }
+      if (editEmail !== user.email) {
+        if (!editSenhaAtual) throw new Error('Informe a senha atual para alterar o email.');
+        const cred = EmailAuthProvider.credential(user.email || '', editSenhaAtual);
+        await reauthenticateWithCredential(user, cred);
+        await updateEmail(user, editEmail);
+      }
+      if (editNovaSenha) {
+        if (!editSenhaAtual) throw new Error('Informe a senha atual para alterar a senha.');
+        const cred = EmailAuthProvider.credential(user.email || '', editSenhaAtual);
+        await reauthenticateWithCredential(user, cred);
+        await updatePassword(user, editNovaSenha);
+      }
+      toast({ title: 'Perfil atualizado', status: 'success' });
+      onEditProfileClose();
+      window.location.reload();
+    } catch (err: any) {
+      toast({ title: 'Erro ao atualizar perfil', description: err.message, status: 'error' });
+    } finally {
+      setIsEditLoading(false);
+    }
+  };
+
   if (isLoadingUser) {
     return (
       <Container centerContent mt={containerMt} py={{ base: 6, md: 10 }}>
@@ -661,18 +730,18 @@ export default function Perfil() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-      <Container 
-        maxW="container.xl" 
-        mt={isMobile ? "60px" : "90px"} 
+      <Container
+        maxW="container.xl"
+        mt={isMobile ? "60px" : "90px"}
         py={{ base: 4, md: 10 }}
         px={{ base: 4, md: 6 }}
       >
         <VStack spacing={isMobile ? 4 : 8} align="stretch">
-          <Card 
-            bg={cardBg} 
-            borderRadius={isMobile ? "xl" : "3xl"} 
-            shadow="2xl" 
-            overflow="hidden" 
+          <Card
+            bg={cardBg}
+            borderRadius={isMobile ? "xl" : "3xl"}
+            shadow="2xl"
+            overflow="hidden"
             border="none"
           >
             <Box bgGradient={gradientBg} px={isMobile ? 4 : 8} py={isMobile ? 8 : 12}>
@@ -699,26 +768,26 @@ export default function Perfil() {
                   />
                 </Box>
                 <VStack spacing={2}>
-                  <Heading 
-                    as="h1" 
-                    size={isMobile ? "lg" : "xl"} 
-                    color="white" 
-                    textAlign="center" 
+                  <Heading
+                    as="h1"
+                    size={isMobile ? "lg" : "xl"}
+                    color="white"
+                    textAlign="center"
                     fontWeight="bold"
                   >
                     {user.displayName || 'Usuário'}
                   </Heading>
-                  <Text 
-                    color="whiteAlpha.900" 
-                    fontSize={isMobile ? "md" : "lg"} 
+                  <Text
+                    color="whiteAlpha.900"
+                    fontSize={isMobile ? "md" : "lg"}
                     textAlign="center"
                   >
                     {user.email}
                   </Text>
                 </VStack>
-                <HStack 
-                  spacing={isMobile ? 2 : 4} 
-                  flexWrap="wrap" 
+                <HStack
+                  spacing={isMobile ? 2 : 4}
+                  flexWrap="wrap"
                   justify="center"
                   w="full"
                 >
@@ -732,7 +801,7 @@ export default function Perfil() {
                     _hover={{ bg: 'whiteAlpha.300', transform: 'translateY(-2px)' }}
                     transition="all 0.2s"
                     backdropFilter="blur(10px)"
-                    onClick={() => navigate('/perfil/editar')}
+                    onClick={handleOpenEditProfile}
                     w={isMobile ? "full" : "auto"}
                   >
                     Editar Perfil
@@ -745,8 +814,8 @@ export default function Perfil() {
                     leftIcon={<Icon as={FaSignOutAlt} />}
                     borderRadius="full"
                     px={isMobile ? 4 : 8}
-                    _hover={{ 
-                      bg: 'whiteAlpha.200', 
+                    _hover={{
+                      bg: 'whiteAlpha.200',
                       borderColor: 'white',
                       transform: 'translateY(-2px)'
                     }}
@@ -859,22 +928,22 @@ export default function Perfil() {
               </Box>
             )}
           </Box>
-          <Modal 
-            isOpen={isOpen} 
-            onClose={onClose} 
-            size="2xl" 
+          <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            size="2xl"
             isCentered
             motionPreset="slideInBottom"
           >
             <ModalOverlay backdropFilter="blur(10px)" bg="blackAlpha.600" />
-            <ModalContent 
-              bg={modalBg} 
-              borderRadius="2xl" 
+            <ModalContent
+              bg={modalBg}
+              borderRadius="2xl"
               shadow="2xl"
               mx={4}
               border="none"
             >
-              <ModalHeader 
+              <ModalHeader
                 borderBottom="1px solid"
                 borderColor={useColorModeValue('gray.200', 'gray.600')}
                 borderTopRadius="2xl"
@@ -896,18 +965,18 @@ export default function Perfil() {
                   </VStack>
                 </HStack>
               </ModalHeader>
-              <ModalCloseButton 
-                borderRadius="full" 
-                top={4} 
+              <ModalCloseButton
+                borderRadius="full"
+                top={4}
                 right={4}
                 _hover={{ bg: useColorModeValue('gray.100', 'gray.600') }}
               />
               <ModalBody p={8}>
                 <VStack spacing={6} align="stretch">
                   <FormControl>
-                    <FormLabel 
-                      fontSize="md" 
-                      fontWeight="semibold" 
+                    <FormLabel
+                      fontSize="md"
+                      fontWeight="semibold"
                       color={headingColor}
                       mb={2}
                     >
@@ -937,9 +1006,9 @@ export default function Perfil() {
                     </Text>
                   </FormControl>
                   <FormControl>
-                    <FormLabel 
-                      fontSize="md" 
-                      fontWeight="semibold" 
+                    <FormLabel
+                      fontSize="md"
+                      fontWeight="semibold"
                       color={headingColor}
                       mb={2}
                     >
@@ -1028,7 +1097,7 @@ export default function Perfil() {
                   )}
                 </VStack>
               </ModalBody>
-              <ModalFooter 
+              <ModalFooter
                 borderTop="1px solid"
                 borderColor={useColorModeValue('gray.200', 'gray.600')}
                 borderBottomRadius="2xl"
@@ -1058,7 +1127,7 @@ export default function Perfil() {
                     borderRadius="xl"
                     px={8}
                     shadow="lg"
-                    _hover={{ 
+                    _hover={{
                       transform: 'translateY(-2px)',
                       shadow: 'xl'
                     }}
@@ -1083,7 +1152,7 @@ export default function Perfil() {
                 {respostaSelecionada ? (
                   <VStack align="center" spacing={6} w="full">
                     <Text fontSize="lg" color={useColorModeValue('gray.700', 'gray.100')} textAlign="center" fontWeight="medium">
-                      <b>Mensagem do Admin:</b><br />
+                      <b>Mensagem de: {adminNome}</b><br />
                       <span style={{ fontWeight: 400 }}>{respostaSelecionada}</span>
                     </Text>
                     <HStack spacing={4} justify="center">
@@ -1103,6 +1172,177 @@ export default function Perfil() {
                   <Text color="gray.500" textAlign="center">Nenhuma resposta registrada para este relato.</Text>
                 )}
               </ModalBody>
+            </ModalContent>
+          </Modal>
+          <Modal isOpen={isEditProfileOpen} onClose={onEditProfileClose} size="lg" isCentered motionPreset="slideInBottom">
+            <ModalOverlay
+              bg="blackAlpha.600"
+              backdropFilter="blur(8px)"
+            />
+            <ModalContent
+              borderRadius="3xl"
+              boxShadow="dark-lg"
+              p={0}
+              overflow="hidden"
+              bg={useColorModeValue('white', 'gray.800')}
+              border="none"
+            >
+              <ModalHeader
+                bgGradient="linear(135deg, #7b2ff2, #f357a8)" // More vibrant gradient
+                color="white"
+                textAlign="center"
+                fontSize={{ base: "xl", md: "2xl" }}
+                fontWeight="extrabold"
+                py={6}
+                position="relative"
+              >
+                Editar Perfil
+                <ModalCloseButton
+                  color="white"
+                  top={4}
+                  right={4}
+                  _hover={{ bg: 'whiteAlpha.300', transform: 'scale(1.1)' }}
+                  size="lg"
+                  borderRadius="full"
+                />
+              </ModalHeader>
+              <ModalBody py={8} px={{ base: 6, md: 8 }}>
+                <VStack spacing={6} align="stretch">
+                  <Box position="relative" alignSelf="center">
+                    <Avatar size="2xl" src={editAvatar || undefined} name={editNome}
+                      border="4px solid"
+                      borderColor={useColorModeValue('blue.300', 'blue.500')}
+                      shadow="lg"
+                    />
+                    {isAdmin && (
+                      <IconButton
+                        size="sm"
+                        position="absolute"
+                        bottom={-2}
+                        left="50%"
+                        transform="translateX(-50%)"
+                        colorScheme="purple"
+                        icon={<FaEdit />}
+                        aria-label="Trocar Foto"
+                        onClick={() => setShowAvatarPicker(v => !v)}
+                        borderRadius="full"
+                        shadow="md"
+                        _hover={{ shadow: 'lg', transform: 'translateX(-50%) translateY(-2px)' }}
+                      >
+                        Trocar Foto
+                      </IconButton>
+                    )}
+                  </Box>
+                  {isAdmin && showAvatarPicker && (
+                    <HStack spacing={4} mt={4} mb={4} justify="center" flexWrap="wrap">
+                      {AVATAR_OPTIONS.map((url) => (
+                        <Avatar
+                          key={url}
+                          src={url}
+                          size="xl"
+                          border={editAvatar === url ? '4px solid #3182ce' : '2px solid transparent'}
+                          cursor="pointer"
+                          onClick={() => setEditAvatar(url)}
+                          _hover={{ border: '4px solid #3182ce', shadow: 'md' }}
+                          transition="all 0.2s"
+                          shadow="sm"
+                        />
+                      ))}
+                    </HStack>
+                  )}
+                  <FormControl>
+                    <FormLabel fontWeight="medium" color={textColor}>Nome</FormLabel>
+                    <Input
+                      value={editNome}
+                      onChange={e => setEditNome(e.target.value)}
+                      maxLength={50}
+                      size="lg"
+                      borderRadius="xl"
+                      focusBorderColor="purple.500"
+                      bg={useColorModeValue('gray.50', 'gray.700')}
+                      _hover={{ borderColor: useColorModeValue('gray.200', 'gray.600') }}
+                    />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel fontWeight="medium" color={textColor}>Email</FormLabel>
+                    <Input
+                      value={editEmail}
+                      onChange={e => setEditEmail(e.target.value)}
+                      type="email"
+                      maxLength={100}
+                      size="lg"
+                      borderRadius="xl"
+                      focusBorderColor="purple.500"
+                      bg={useColorModeValue('gray.50', 'gray.700')}
+                      _hover={{ borderColor: useColorModeValue('gray.200', 'gray.600') }}
+                    />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel fontWeight="medium" color={textColor}>
+                      Senha Atual <Text as="span" color="gray.500" fontSize="sm" fontStyle="italic">(necessária para alterar email ou senha)</Text>
+                    </FormLabel>
+                    <Input
+                      value={editSenhaAtual}
+                      onChange={e => setEditSenhaAtual(e.target.value)}
+                      type="password"
+                      maxLength={100}
+                      size="lg"
+                      borderRadius="xl"
+                      focusBorderColor="purple.500"
+                      bg={useColorModeValue('gray.50', 'gray.700')}
+                      _hover={{ borderColor: useColorModeValue('gray.200', 'gray.600') }}
+                    />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel fontWeight="medium" color={textColor}>Nova Senha</FormLabel>
+                    <Input
+                      value={editNovaSenha}
+                      onChange={e => setEditNovaSenha(e.target.value)}
+                      type="password"
+                      maxLength={100}
+                      size="lg"
+                      borderRadius="xl"
+                      focusBorderColor="purple.500"
+                      bg={useColorModeValue('gray.50', 'gray.700')}
+                      _hover={{ borderColor: useColorModeValue('gray.200', 'gray.600') }}
+                    />
+                  </FormControl>
+                </VStack>
+              </ModalBody>
+              <ModalFooter
+                bg={useColorModeValue('gray.50', 'gray.700')}
+                borderBottomRadius="3xl"
+                py={5}
+                px={{ base: 6, md: 8 }}
+                display="flex"
+                justifyContent="flex-end"
+                gap={3}
+              >
+                <Button
+                  onClick={onEditProfileClose}
+                  variant="ghost"
+                  borderRadius="xl"
+                  colorScheme="red"
+                  size="lg"
+                  px={6}
+                  _hover={{ bg: useColorModeValue('red.50', 'red.900') }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  colorScheme="blue"
+                  onClick={handleSaveProfileEdit}
+                  isLoading={isEditLoading}
+                  loadingText="Salvando..."
+                  borderRadius="xl"
+                  size="lg"
+                  px={8}
+                  shadow="md"
+                  _hover={{ shadow: 'lg', transform: 'translateY(-2px)' }}
+                >
+                  Salvar Alterações
+                </Button>
+              </ModalFooter>
             </ModalContent>
           </Modal>
         </VStack>

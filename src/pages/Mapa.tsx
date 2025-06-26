@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Box,
   Container,
@@ -29,7 +29,8 @@ import {
   ModalBody,
   ModalCloseButton,
   useDisclosure,
-  Icon
+  Icon,
+  Button
 } from '@chakra-ui/react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
@@ -217,15 +218,23 @@ function MapView({
 // Cores para os status
 const statusColors = {
   'resolvido': '#48BB78', // verde
-  'em andamento': '#ECC94B', // amarelo
-  'pendente': '#F56565', // vermelho
-  'aguardando': '#4299E1', // azul
-  'default': '#718096' // cinza
+  'em_andamento': '#ECC94B', // amarelo
+  'pendente': '#F56565' // vermelho
+};
+
+// Função para normalizar o status
+const normalizeStatus = (status: string): string => {
+  if (!status) return 'pendente';
+  const normalized = status.toLowerCase().trim();
+  // Corrige o status "em andamento"
+  if (normalized === 'em andamento') return 'em_andamento';
+  return normalized;
 };
 
 // Cria ícones coloridos para status com melhor visual
 const createStatusIcon = (status: string, count: number = 1) => {
-  const color = statusColors[status.toLowerCase() as keyof typeof statusColors] || statusColors.default;
+  const normalizedStatus = normalizeStatus(status);
+  const color = statusColors[normalizedStatus as keyof typeof statusColors] || statusColors.pendente;
   return L.divIcon({
     className: 'custom-div-icon',
     html: `
@@ -245,7 +254,7 @@ const createStatusIcon = (status: string, count: number = 1) => {
         text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
         position: relative;
       ">
-        ${status.charAt(0).toUpperCase()}
+        ${normalizedStatus.charAt(0).toUpperCase()}
         ${count > 1 ? `
           <div style="
             position: absolute;
@@ -359,24 +368,33 @@ const calcularDistancia = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c;
 };
 
-// Função para agrupar problemas por proximidade (ex: até 10 metros)
+// Função para agrupar problemas por proximidade e status
 function groupProblemsByProximity(problems: Problema[], thresholdMeters = 10) {
-  const groups: { coords: [number, number], problems: Problema[] }[] = [];
+  const groups: { coords: [number, number], problems: Problema[], status: string }[] = [];
 
   for (const problema of problems) {
     const coords = formatarCoordenadas(problema);
     if (!coords) continue;
+    
+    const status = normalizeStatus(problema.status || '');
     let found = false;
+
     for (const group of groups) {
+      // Verifica se está próximo E tem o mesmo status
       const dist = calcularDistancia(coords[0], coords[1], group.coords[0], group.coords[1]) * 1000; // km -> m
-      if (dist < thresholdMeters) {
+      if (dist < thresholdMeters && group.status === status) {
         group.problems.push(problema);
         found = true;
         break;
       }
     }
+
     if (!found) {
-      groups.push({ coords, problems: [problema] });
+      groups.push({ 
+        coords, 
+        problems: [problema],
+        status 
+      });
     }
   }
   return groups;
@@ -398,6 +416,7 @@ const Mapa: React.FC = () => {
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedLocationProblems, setSelectedLocationProblems] = useState<Problema[]>([]);
+  const mapRef = useRef<any>(null);
 
   // Busca localização do usuário
   useEffect(() => {
@@ -478,7 +497,7 @@ const Mapa: React.FC = () => {
 
   // Estatísticas dos problemas
   const estatisticas = todosProblemas.reduce((acc, problema) => {
-    const status = problema.status?.toLowerCase() || 'pendente';
+    const status = normalizeStatus(problema.status || '');
     acc[status] = (acc[status] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
@@ -591,241 +610,361 @@ const Mapa: React.FC = () => {
   };
 
   return (
-    <Container maxW={{ base: '100vw', md: 'container.xl' }} px={{ base: 0, md: 4 }} py={{ base: 2, md: 8 }} mt={{ base: '60px', md: '64px' }}>
-      <VStack spacing={{ base: 2, md: 6 }} align="stretch">
-        <Heading size={{ base: 'md', md: 'xl' }} color="blue.600" px={{ base: 4, md: 0 }}>
-          Mapa de Problemas
-        </Heading>
+    <Box minH="100vh" bgGradient={useColorModeValue(
+      'linear(to-br, blue.50, purple.50, pink.50)',
+      'linear(to-br, gray.900, blue.900, purple.900)'
+    )}>
+      <Container maxW="100vw" px={{ base: 8, md: 12 }} py={0} mt={{ base: '60px', md: '64px' }}>
+        <VStack spacing={{ base: 2, md: 6 }} align="stretch">
+          <VStack spacing={6} textAlign="center">
+            <Box position="relative">
+              <Heading 
+                size={{ base: 'md', md: 'xl' }} 
+                bgGradient={useColorModeValue(
+                  'linear(to-r, blue.600, purple.600)',
+                  'linear(to-r, blue.300, purple.300)'
+                )}
+                bgClip="text"
+                fontWeight="extrabold"
+                letterSpacing="tight"
+              >
+                🗺️ Mapa de Problemas
+              </Heading>
+              <Text 
+                fontSize={{ base: "sm", md: "md" }} 
+                color={useColorModeValue('gray.600', 'gray.300')}
+                mt={2}
+                maxW="600px"
+                mx="auto"
+              >
+                Visualize e acompanhe os problemas reportados em Uberaba
+              </Text>
+            </Box>
+          </VStack>
 
-        {/* Dashboard de Status */}
-        <SimpleGrid columns={{ base: 1, sm: 2, md: 4 }} spacing={{ base: 2, md: 4 }} px={{ base: 2, md: 0 }}>
-          {Object.entries(statusColors).map(([status, color]) => (
-            <Card 
-              key={status} 
-              bg={cardBg}
-              border="1px solid"
-              borderColor={borderColor}
-              cursor="pointer"
-              transition="all 0.2s"
-              _hover={{ transform: 'translateY(-2px)', boxShadow: 'lg' }}
-              onClick={() => setStatusFilter(statusFilter === status ? null : status)}
-              opacity={statusFilter && statusFilter !== status ? 0.5 : 1}
-              minW={0}
-            >
-              <CardBody p={{ base: 3, md: 5 }}>
-                <Stat>
-                  <StatLabel color={color} fontWeight="bold" fontSize={{ base: 'sm', md: 'md' }}>
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
-                  </StatLabel>
-                  <StatNumber fontSize={{ base: 'lg', md: '2xl' }}>{estatisticas[status] || 0}</StatNumber>
-                  <StatHelpText fontSize={{ base: 'xs', md: 'sm' }}>
-                    {statusFilter === status ? 'Clique para remover filtro' : 'Clique para filtrar'}
-                  </StatHelpText>
-                </Stat>
-              </CardBody>
-            </Card>
-          ))}
-        </SimpleGrid>
-
-        {/* Mapa */}
-        <Box
-          height={{ base: 'calc(100dvh - 220px)', md: '600px' }}
-          minH={{ base: '320px', md: '400px' }}
-          border="1px solid"
-          borderColor={borderColor}
-          borderRadius="lg"
-          overflow="hidden"
-          position="relative"
-          boxShadow="lg"
-          w="full"
-          mx="auto"
-        >
-          {/* Botão de mostrar próximos */}
-          <Box position="absolute" top={2} right={2} zIndex={1000}>
-            <Tooltip label={showNearby ? "Mostrar todos os problemas" : "Mostrar apenas problemas próximos"}>
-              <IconButton
-                aria-label="Mostrar problemas próximos"
-                icon={<FaEye />}
-                colorScheme={showNearby ? "gray" : "blue"}
-                onClick={handleShowNearby}
-                size={{ base: "md", md: "lg" }}
-                borderRadius="full"
-                boxShadow="lg"
-              />
-            </Tooltip>
-          </Box>
-
-          <MapContainer
-            center={mapPosition}
-            zoom={13}
-            style={{ height: '100%', width: '100%' }}
-            scrollWheelZoom
-          >
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; OpenStreetMap contributors'
-            />
-            <MapView center={mapPosition} userLocation={userLocation} />
-
-            {/* Círculo de alcance quando mostrar próximos está ativo */}
-            {showNearby && userLocation && (
-              <Circle
-                center={userLocation}
-                radius={1000}
-                pathOptions={{ color: 'blue', fillColor: 'blue', fillOpacity: 0.1 }}
-              />
-            )}
-
-            {/* Marcadores */}
-            {!isLoading && groupProblemsByProximity(todosProblemas).map((group, idx) => {
-              const coords = group.coords;
-              const problems = group.problems;
-
-              // Filtro de distância
-              if (showNearby && userLocation) {
-                const distancia = calcularDistancia(
-                  userLocation[0],
-                  userLocation[1],
-                  coords[0],
-                  coords[1]
-                );
-                if (distancia > 1) return null;
-              }
-
-              // Filtro de status
-              if (statusFilter) {
-                const hasMatchingStatus = problems.some(p => p.status?.toLowerCase() === statusFilter);
-                if (!hasMatchingStatus) return null;
-              }
-
-              // Usa o status do primeiro problema para o ícone
-              const status = problems[0].status || 'pendente';
-
+          {/* Dashboard de Status */}
+          <SimpleGrid columns={{ base: 1, sm: 2, md: 3 }} spacing={{ base: 2, md: 4 }} px={{ base: 2, md: 0 }}>
+            {Object.entries(statusColors).map(([status, color]) => {
+              // Formata o status para exibição
+              const displayStatus = status === 'em_andamento' ? 'Em Andamento' : 
+                status.charAt(0).toUpperCase() + status.slice(1);
+              
               return (
-                <Marker
-                  key={idx}
-                  position={coords}
-                  icon={createStatusIcon(status, problems.length)}
-                  eventHandlers={{
-                    click: () => {
-                      setSelectedLocationProblems(problems);
-                      onOpen();
-                    }
+                <Card 
+                  key={status} 
+                  bg={useColorModeValue('white', 'gray.800')}
+                  border="1px solid"
+                  borderColor={useColorModeValue('gray.100', 'gray.700')}
+                  cursor="pointer"
+                  transition="all 0.3s"
+                  _hover={{ 
+                    transform: 'translateY(-4px)', 
+                    boxShadow: '2xl',
+                    borderColor: color
                   }}
-                />
+                  onClick={() => setStatusFilter(statusFilter === status ? null : status)}
+                  opacity={statusFilter && statusFilter !== status ? 0.5 : 1}
+                  minW={0}
+                  borderRadius="2xl"
+                  overflow="hidden"
+                  position="relative"
+                >
+                  <Box
+                    position="absolute"
+                    top="0"
+                    left="0"
+                    right="0"
+                    h="4px"
+                    bg={color}
+                  />
+                  <CardBody p={{ base: 4, md: 6 }}>
+                    <Stat>
+                      <StatLabel 
+                        color={color} 
+                        fontWeight="bold" 
+                        fontSize={{ base: 'sm', md: 'md' }}
+                        display="flex"
+                        alignItems="center"
+                        gap={2}
+                      >
+                        <Icon as={getStatusIcon(status)} />
+                        {displayStatus}
+                      </StatLabel>
+                      <StatNumber 
+                        fontSize={{ base: '2xl', md: '3xl' }}
+                        fontWeight="bold"
+                        color={useColorModeValue('gray.800', 'white')}
+                      >
+                        {estatisticas[status] || 0}
+                      </StatNumber>
+                      <StatHelpText 
+                        fontSize={{ base: 'xs', md: 'sm' }}
+                        color={useColorModeValue('gray.500', 'gray.400')}
+                      >
+                        {statusFilter === status ? 'Clique para remover filtro' : 'Clique para filtrar'}
+                      </StatHelpText>
+                    </Stat>
+                  </CardBody>
+                </Card>
               );
             })}
+          </SimpleGrid>
 
-            {/* Marcador selecionado */}
-            {selectedMarker && (() => {
-              const coords = formatarCoordenadas(selectedMarker)!;
-              return (
-                <Marker
-                  key={selectedMarker.id}
-                  position={coords}
-                  icon={SelectedIcon}
-                  zIndexOffset={1000}
-                  eventHandlers={{ click: () => setSelectedMarker(selectedMarker) }}
-                >
-                  {!isMobile && (
-                    <Popup>
-                      <ProblemaCard problema={selectedMarker} />
-                    </Popup>
-                  )}
-                </Marker>
-              );
-            })()}
-          </MapContainer>
-        </Box>
-
-        {/* Modal para múltiplos problemas */}
-        <Modal isOpen={isOpen} onClose={onClose} size={{ base: 'full', md: '2xl' }} isCentered>
-          <ModalOverlay backdropFilter="blur(10px)" bg="blackAlpha.600" />
-          <ModalContent 
-            bg={useColorModeValue('white', 'gray.800')} 
-            borderRadius={{ base: '0', md: '2xl' }} 
-            shadow="2xl"
-            mx={{ base: 0, md: 4 }}
-            border="none"
-            maxH={{ base: '100dvh', md: '90vh' }}
-            display="flex"
-            flexDir="column"
+          {/* Mapa */}
+          <Box
+            height={{ base: 'calc(100dvh - 220px)', md: '600px' }}
+            minH={{ base: '320px', md: '400px' }}
+            border="3px solid"
+            borderColor={useColorModeValue('blue.200', 'blue.700')}
+            borderRadius="2xl"
+            overflow="hidden"
+            position="relative"
+            boxShadow="2xl"
+            w="full"
+            mx="auto"
+            mb={12}
+            mt={4}
+            bg={useColorModeValue('white', 'gray.800')}
           >
-            <ModalHeader 
-              borderBottom="1px solid"
-              borderColor={useColorModeValue('gray.200', 'gray.600')}
-              borderTopRadius={{ base: '0', md: '2xl' }}
-              bg={useColorModeValue('gray.50', 'gray.700')}
-              px={{ base: 4, md: 6 }}
-              py={{ base: 3, md: 4 }}
-              position="relative"
-            >
-              <HStack spacing={3}>
-                <Box
-                  p={2}
-                  bg={useColorModeValue('blue.100', 'blue.800')}
-                  borderRadius="lg"
-                >
-                  <Icon as={FaMapMarkerAlt} color="blue.500" />
-                </Box>
-                <VStack align="start" spacing={0}>
-                  <Text fontSize={{ base: 'md', md: 'lg' }} fontWeight="bold">Problemas nesta localização</Text>
-                  <Text fontSize={{ base: 'sm', md: 'md' }} color={useColorModeValue('gray.600', 'gray.300')}>
-                    {selectedLocationProblems.length} problema{selectedLocationProblems.length !== 1 ? 's' : ''} encontrado{selectedLocationProblems.length !== 1 ? 's' : ''}
-                  </Text>
-                </VStack>
-              </HStack>
-              <ModalCloseButton 
-                borderRadius="full" 
-                top={4} 
-                right={4}
-                size={{ base: 'lg', md: 'md' }}
-                _hover={{ bg: useColorModeValue('gray.100', 'gray.600') }}
-                zIndex={10}
-              />
-            </ModalHeader>
-            <ModalBody
-              p={{ base: 2, md: 6 }}
-              flex={1}
-              overflowY="auto"
-              maxH={{ base: 'calc(100dvh - 120px)', md: '70vh' }}
-            >
-              <VStack spacing={{ base: 2, md: 4 }} align="stretch">
-                {selectedLocationProblems.map(problema => (
-                  <ProblemaCard key={problema.id} problema={problema} />
-                ))}
-              </VStack>
-            </ModalBody>
-            {/* Botão grande de fechar para mobile */}
-            <Box display={{ base: 'block', md: 'none' }} p={4}>
-              <button
-                style={{
-                  width: '100%',
-                  padding: '16px',
-                  fontSize: '1.1rem',
-                  borderRadius: '12px',
-                  background: '#3182CE',
-                  color: 'white',
-                  border: 'none',
-                  fontWeight: 'bold',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
-                }}
-                onClick={onClose}
-              >
-                Fechar
-              </button>
+            {/* Botão de mostrar próximos */}
+            <Box position="absolute" top={6} right={6} zIndex={1000}>
+              <Tooltip label="Centralizar e aproximar na sua localização">
+                <IconButton
+                  aria-label="Centralizar no usuário"
+                  icon={<FaMapMarkerAlt />}
+                  colorScheme="blue"
+                  onClick={() => {
+                    if (userLocation && mapRef.current) {
+                      const mapInstance = mapRef.current;
+                      if (mapInstance.setView) {
+                        mapInstance.setView(userLocation, 17, { animate: true });
+                      } else if (mapInstance.leafletElement) {
+                        mapInstance.leafletElement.setView(userLocation, 17, { animate: true });
+                      }
+                    } else {
+                      toast({
+                        title: 'Localização não encontrada',
+                        description: 'Não foi possível obter sua localização.',
+                        status: 'warning',
+                        duration: 4000,
+                        isClosable: true,
+                      });
+                    }
+                  }}
+                  size={{ base: "md", md: "lg" }}
+                  borderRadius="full"
+                  boxShadow="xl"
+                  _hover={{ 
+                    transform: 'scale(1.1)',
+                    shadow: '2xl'
+                  }}
+                  transition="all 0.2s"
+                  bg={useColorModeValue('white', 'gray.700')}
+                />
+              </Tooltip>
             </Box>
-          </ModalContent>
-        </Modal>
 
-        {/* Card em modo mobile */}
-        {isMobile && selectedMarker && (
-          <Box mt={4} px={2}>
-            <ProblemaCard problema={selectedMarker} />
+            <MapContainer
+              center={mapPosition}
+              zoom={13}
+              style={{ height: '100%', width: '100%', borderRadius: '1rem' }}
+              scrollWheelZoom
+              ref={mapRef}
+            >
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; OpenStreetMap contributors'
+              />
+              <MapView center={mapPosition} userLocation={userLocation} />
+
+              {/* Círculo de alcance quando mostrar próximos está ativo */}
+              {showNearby && userLocation && (
+                <Circle
+                  center={userLocation}
+                  radius={1000}
+                  pathOptions={{ 
+                    color: 'blue', 
+                    fillColor: 'blue', 
+                    fillOpacity: 0.1,
+                    weight: 2
+                  }}
+                />
+              )}
+
+              {/* Marcadores */}
+              {!isLoading && groupProblemsByProximity(todosProblemas).map((group, idx) => {
+                const coords = group.coords;
+                const problems = group.problems;
+                const status = group.status;
+
+                // Filtro de distância
+                if (showNearby && userLocation) {
+                  const distancia = calcularDistancia(
+                    userLocation[0],
+                    userLocation[1],
+                    coords[0],
+                    coords[1]
+                  );
+                  if (distancia > 1) return null;
+                }
+
+                // Filtro de status melhorado
+                if (statusFilter && status !== normalizeStatus(statusFilter)) {
+                  return null;
+                }
+
+                return (
+                  <Marker
+                    key={idx}
+                    position={coords}
+                    icon={createStatusIcon(status, problems.length)}
+                    eventHandlers={{
+                      click: () => {
+                        setSelectedLocationProblems(problems);
+                        onOpen();
+                      }
+                    }}
+                  />
+                );
+              })}
+
+              {/* Marcador selecionado */}
+              {selectedMarker && (() => {
+                const coords = formatarCoordenadas(selectedMarker)!;
+                return (
+                  <Marker
+                    key={selectedMarker.id}
+                    position={coords}
+                    icon={SelectedIcon}
+                    zIndexOffset={1000}
+                    eventHandlers={{ click: () => setSelectedMarker(selectedMarker) }}
+                  >
+                    {!isMobile && (
+                      <Popup>
+                        <ProblemaCard problema={selectedMarker} />
+                      </Popup>
+                    )}
+                  </Marker>
+                );
+              })()}
+            </MapContainer>
+
+            {/* Instrução do Mapa */}
+            <Box
+              position="absolute"
+              bottom={4}
+              left={4}
+              right={4}
+              bg={useColorModeValue('whiteAlpha.900', 'blackAlpha.800')}
+              p={3}
+              borderRadius="lg"
+              backdropFilter="blur(10px)"
+              border="1px solid"
+              borderColor={useColorModeValue('whiteAlpha.300', 'whiteAlpha.200')}
+            >
+              <Text fontSize="sm" color={useColorModeValue('gray.700', 'gray.200')} textAlign="center" fontWeight="medium">
+                💡 Clique nos marcadores para ver os detalhes dos problemas
+              </Text>
+            </Box>
           </Box>
-        )}
-      </VStack>
-    </Container>
+
+          {/* Modal para múltiplos problemas */}
+          <Modal isOpen={isOpen} onClose={onClose} size={{ base: 'full', md: '2xl' }} isCentered>
+            <ModalOverlay backdropFilter="blur(10px)" bg="blackAlpha.600" />
+            <ModalContent 
+              bg={useColorModeValue('white', 'gray.800')} 
+              borderRadius={{ base: '0', md: '2xl' }} 
+              shadow="2xl"
+              mx={{ base: 0, md: 4 }}
+              border="none"
+              maxH={{ base: '100dvh', md: '90vh' }}
+              display="flex"
+              flexDir="column"
+            >
+              <ModalHeader 
+                borderBottom="1px solid"
+                borderColor={useColorModeValue('gray.200', 'gray.600')}
+                borderTopRadius={{ base: '0', md: '2xl' }}
+                bg={useColorModeValue('gray.50', 'gray.700')}
+                px={{ base: 4, md: 6 }}
+                py={{ base: 3, md: 4 }}
+                position="relative"
+              >
+                <HStack spacing={3}>
+                  <Box
+                    p={2}
+                    bg={useColorModeValue('blue.100', 'blue.800')}
+                    borderRadius="lg"
+                  >
+                    <Icon as={FaMapMarkerAlt} color="blue.500" />
+                  </Box>
+                  <VStack align="start" spacing={0}>
+                    <Text fontSize={{ base: 'md', md: 'lg' }} fontWeight="bold">Problemas nesta localização</Text>
+                    <Text fontSize={{ base: 'sm', md: 'md' }} color={useColorModeValue('gray.600', 'gray.300')}>
+                      {selectedLocationProblems.length} problema{selectedLocationProblems.length !== 1 ? 's' : ''} encontrado{selectedLocationProblems.length !== 1 ? 's' : ''}
+                    </Text>
+                  </VStack>
+                </HStack>
+                <ModalCloseButton 
+                  borderRadius="full" 
+                  top={4} 
+                  right={4}
+                  size={{ base: 'lg', md: 'md' }}
+                  _hover={{ bg: useColorModeValue('gray.100', 'gray.600') }}
+                  zIndex={10}
+                />
+              </ModalHeader>
+              <ModalBody
+                p={{ base: 2, md: 6 }}
+                flex={1}
+                overflowY="auto"
+                maxH={{ base: 'calc(100dvh - 120px)', md: '70vh' }}
+              >
+                <VStack spacing={{ base: 2, md: 4 }} align="stretch">
+                  {selectedLocationProblems.map(problema => (
+                    <ProblemaCard key={problema.id} problema={problema} />
+                  ))}
+                </VStack>
+              </ModalBody>
+              {/* Botão grande de fechar para mobile */}
+              <Box display={{ base: 'block', md: 'none' }} p={4}>
+                <Button
+                  w="100%"
+                  h="50px"
+                  colorScheme="blue"
+                  bgGradient="linear(to-r, blue.500, purple.500)"
+                  color="white"
+                  fontWeight="bold"
+                  fontSize="lg"
+                  borderRadius="xl"
+                  onClick={onClose}
+                  shadow="xl"
+                  _hover={{
+                    bgGradient: "linear(to-r, blue.600, purple.600)",
+                    transform: "translateY(-2px)",
+                    shadow: "2xl"
+                  }}
+                  _active={{
+                    transform: "translateY(0)",
+                    shadow: "lg"
+                  }}
+                  transition="all 0.3s"
+                >
+                  Fechar
+                </Button>
+              </Box>
+            </ModalContent>
+          </Modal>
+
+          {/* Card em modo mobile */}
+          {isMobile && selectedMarker && (
+            <Box mt={4} px={2}>
+              <ProblemaCard problema={selectedMarker} />
+            </Box>
+          )}
+        </VStack>
+      </Container>
+    </Box>
   );
 };
 

@@ -14,6 +14,7 @@ import PrimeiroAdmin from './pages/PrimeiroAdmin';
 import Perfil from './pages/Perfil';
 import 'leaflet/dist/leaflet.css';
 import './styles/leaflet.css';
+import ScrollToTop from './ScrollToTop';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
       <ChakraProvider theme={theme}>
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Header />
+          <ScrollToTop />
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />

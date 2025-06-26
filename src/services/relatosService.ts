@@ -32,7 +32,7 @@ export interface Relato {
   dataAtualizacao?: string;
   atualizadoPor?: string;
   comentarios?: Comentario[];
-  prioridade?: 'alta' | 'media' | 'baixa';
+  prioridade: 'alta' | 'media' | 'baixa';
 }
 
 export interface Comentario {
@@ -341,53 +341,16 @@ export const RelatosService = {
 
   async adicionarComentario(relatoId: string, comentario: Omit<Comentario, 'id' | 'dataCriacao'>) {
     try {
-      const comentariosRef = ref(database, `relatos/${relatoId}/comentarios`);
+      const comentariosRef = ref(database, `comentarios_${relatoId}`);
+      const novoComentarioRef = await push(comentariosRef, comentario);
       const novoComentario = {
+        id: novoComentarioRef.key,
         ...comentario,
-        id: uuidv4(),
-        dataCriacao: new Date().toISOString(),
       };
-      
-      await push(comentariosRef, novoComentario);
+      cacheService.remove(CACHE_KEYS.COMENTARIOS(relatoId));
       return novoComentario;
     } catch (error) {
       console.error('Erro ao adicionar comentário:', error);
-      throw error;
-    }
-  },
-
-  async excluirComentario(relatoId: string, comentarioId: string) {
-    try {
-      const comentarioRef = ref(database, `relatos/${relatoId}/comentarios/${comentarioId}`);
-      await remove(comentarioRef);
-      return true;
-    } catch (error) {
-      console.error('Erro ao excluir comentário:', error);
-      throw error;
-    }
-  },
-
-  async atualizarPerfil(userId: string, dados: Partial<PerfilUsuario>) {
-    try {
-      const perfilRef = ref(database, `usuarios/${userId}/perfil`);
-      await update(perfilRef, {
-        ...dados,
-        dataAtualizacao: new Date().toISOString(),
-      });
-      return true;
-    } catch (error) {
-      console.error('Erro ao atualizar perfil:', error);
-      throw error;
-    }
-  },
-
-  async obterPerfil(userId: string) {
-    try {
-      const perfilRef = ref(database, `usuarios/${userId}/perfil`);
-      const snapshot = await get(perfilRef);
-      return snapshot.exists() ? snapshot.val() : null;
-    } catch (error) {
-      console.error('Erro ao obter perfil:', error);
       throw error;
     }
   },

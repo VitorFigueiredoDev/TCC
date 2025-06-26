@@ -190,9 +190,9 @@ export default function Problemas() {
         lat = parseFloat(String(problema.coordenadas[0]));
         lng = parseFloat(String(problema.coordenadas[1]));
       }
-    } else if (problema.latitude && problema.longitude) {
-      lat = parseFloat(String(problema.latitude));
-      lng = parseFloat(String(problema.longitude));
+    } else if ('latitude' in problema && 'longitude' in problema && problema.latitude && problema.longitude) {
+      lat = parseFloat(String((problema as any).latitude));
+      lng = parseFloat(String((problema as any).longitude));
     }
     if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
       return { latitude: lat, longitude: lng };
@@ -303,54 +303,98 @@ export default function Problemas() {
                 key={problema.id}
                 onClick={() => handleCardClick(problema)}
                 cursor="pointer"
-                transition="all 0.2s ease-in-out"
-                _hover={{ transform: 'translateY(-5px)', shadow: 'lg' }}
-                bg={cardBgColor}
-                borderColor={cardBorderColor}
+                transition="all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+                _hover={{ transform: 'translateY(-8px) scale(1.02)', shadow: '2xl', borderColor: 'blue.400' }}
+                bgGradient={useColorModeValue('linear(to-br, blue.50, purple.50, pink.50)', 'linear(to-br, gray.900, blue.900, purple.900)')}
+                borderColor={useColorModeValue('gray.200', 'gray.700')}
                 borderWidth="1px"
                 overflow="hidden"
-                borderRadius="lg"
+                borderRadius="2xl"
+                shadow="xl"
                 display="flex"
                 flexDirection="column"
+                position="relative"
               >
-                <Box h="180px" overflow="hidden" position="relative">
+                <Box h="240px" overflow="hidden" position="relative">
                   <Image
                     src={problema.foto || MAP_TIPO_TO_IMG[problema.tipo] || MAP_TIPO_TO_IMG.outros}
                     alt={problema.titulo || 'Problema relatado'}
                     objectFit="cover"
                     w="full"
                     h="full"
-                    fallbackSrc={MAP_TIPO_TO_IMG.outros} // Imagem de fallback para o componente Image
+                    fallbackSrc={MAP_TIPO_TO_IMG.outros}
                   />
-                </Box>
-                <CardBody display="flex" flexDirection="column" flexGrow={1} p={4}>
-                  <VStack align="stretch" spacing={2} flexGrow={1}>
-                    <HStack justifyContent="space-between">
-                      <Badge
-                        colorScheme={getStatusColorScheme(problema.status)}
-                        variant="subtle" fontSize="xs" px={2} py={0.5} borderRadius="md"
-                      >
-                        {formatProblemStatus(problema.status || 'N/A')}
-                      </Badge>
-                      <Badge
-                        colorScheme="teal" variant="outline" fontSize="xs" px={2} py={0.5} borderRadius="md"
-                      >
-                        {formatProblemType(problema.tipo || 'Outro')}
-                      </Badge>
-                    </HStack>
-                    <Heading size="sm" noOfLines={2} color={headingColor} title={problema.titulo}>
+                  <Box
+                    position="absolute"
+                    top={0}
+                    left={0}
+                    right={0}
+                    bottom={0}
+                    bgGradient={useColorModeValue('linear(to-t, blackAlpha.700, transparent)', 'linear(to-t, blackAlpha.900, transparent)')}
+                  />
+                  <HStack position="absolute" top={3} right={3} spacing={2} zIndex={2}>
+                    <Badge
+                      colorScheme={getStatusColorScheme(problema.status)}
+                      variant="solid"
+                      borderRadius="full"
+                      px={3}
+                      py={1}
+                      fontSize="xs"
+                      display="flex"
+                      alignItems="center"
+                      gap={1}
+                      shadow="md"
+                    >
+                      <Icon as={FaMapMarkedAlt} boxSize={2.5} />
+                      {formatProblemStatus(problema.status || 'N/A')}
+                    </Badge>
+                    <Badge
+                      colorScheme="teal"
+                      variant="solid"
+                      borderRadius="full"
+                      px={3}
+                      py={1}
+                      fontSize="xs"
+                      display="flex"
+                      alignItems="center"
+                      gap={1}
+                      shadow="md"
+                    >
+                      <Icon as={FaMapMarkedAlt} boxSize={2.5} />
+                      {formatProblemType(problema.tipo || 'Outro')}
+                    </Badge>
+                  </HStack>
+                  <Box position="absolute" bottom={3} left={3} right={3} zIndex={2}>
+                    <Heading 
+                      size="md" 
+                      bgGradient={useColorModeValue('linear(to-r, blue.600, purple.600)', 'linear(to-r, blue.300, purple.300)')}
+                      bgClip="text"
+                      color="white"
+                      noOfLines={2}
+                      textShadow="0 2px 4px rgba(0,0,0,0.6)"
+                      fontWeight="extrabold"
+                    >
                       {problema.titulo || 'Título não informado'}
                     </Heading>
-                    <Text fontSize="xs" color={textColor} noOfLines={1}
-                      title={[ problema.endereco?.rua, problema.endereco?.numero, problema.endereco?.bairro, `${problema.endereco?.cidade || ''}-${problema.endereco?.estado || ''}`].filter(Boolean).join(', ')}
-                    >
-                      <Icon as={FaMapMarkedAlt} mr={1} display="inline-block" verticalAlign="middle"/>
-                      {[problema.endereco?.rua, problema.endereco?.numero, problema.endereco?.bairro].filter(Boolean).join(', ')}
-                    </Text>
-                    <Text fontSize="sm" noOfLines={3} color={textColor} flexGrow={1} title={problema.descricao}>
+                  </Box>
+                </Box>
+                <CardBody p={6}>
+                  <VStack align="stretch" spacing={5} flexGrow={1}>
+                    <Text fontSize="sm" color={textColor} noOfLines={3} minH="60px">
                       {problema.descricao || 'Descrição não informada.'}
                     </Text>
-                    <Text fontSize="xs" color={dateTextColor} mt="auto"> {/* Usando variável */}
+                    <HStack spacing={2} align="flex-start">
+                      <Icon as={FaMapMarkedAlt} color={useColorModeValue('blue.500', 'blue.300')} mt={0.5} flexShrink={0} />
+                      <Text fontSize="sm" color={textColor} lineHeight="1.4">
+                        {[
+                          problema.endereco?.rua,
+                          problema.endereco?.numero,
+                          problema.endereco?.bairro,
+                          `${problema.endereco?.cidade || ''}-${problema.endereco?.estado || ''}`,
+                        ].filter(Boolean).join(', ')}
+                      </Text>
+                    </HStack>
+                    <Text fontSize="xs" color={useColorModeValue('gray.500', 'gray.400')}>
                       Relatado em: {new Date(problema.dataCriacao).toLocaleDateString('pt-BR', {
                         day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
                       })}

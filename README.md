@@ -1,142 +1,153 @@
-# Sistema de Gestão de Problemas Urbanos
+# 🏙️ Sistema de Gestão de Problemas Urbanos
+
+![Badge](https://img.shields.io/badge/React-18.2.0-blue?logo=react)
+![Badge](https://img.shields.io/badge/Firebase-Cloud-orange?logo=firebase)
+![Badge](https://img.shields.io/badge/TypeScript-4.x-blue?logo=typescript)
+![Badge](https://img.shields.io/badge/ChakraUI-Component-green?logo=chakraui)
+![Badge](https://img.shields.io/badge/License-MIT-green)
+
+---
 
 ## 📋 Descrição
-Este é um sistema web desenvolvido para gerenciamento e reporte de problemas urbanos, permitindo que cidadãos reportem problemas em suas comunidades e que administradores gerenciem essas ocorrências de forma eficiente.
+
+Sistema web para **reportar, visualizar e gerenciar problemas urbanos**. Cidadãos podem relatar ocorrências em suas comunidades e administradores têm ferramentas para moderação e acompanhamento.
+
+---
 
 ## 🚀 Tecnologias Utilizadas
 
-### Frontend
-- **React** (v18.2.0) - Biblioteca JavaScript para construção de interfaces
-- **TypeScript** - Superset JavaScript com tipagem estática
-- **Vite** - Build tool e servidor de desenvolvimento
-- **Chakra UI** - Biblioteca de componentes React
-- **React Router DOM** - Roteamento da aplicação
-- **Framer Motion** - Biblioteca para animações
-- **React Icons** - Ícones para a interface
-- **Leaflet** - Biblioteca para mapas interativos
-- **React Leaflet** - Componentes React para Leaflet
-- **Fuse.js** - Biblioteca de busca fuzzy
-- **Date-fns** - Manipulação de datas
-- **UUID** - Geração de identificadores únicos
+| Frontend         | Backend & Infraestrutura |
+|------------------|-------------------------|
+| ![React](https://img.shields.io/badge/-React-61DAFB?logo=react&logoColor=white) | ![Firebase](https://img.shields.io/badge/-Firebase-FFCA28?logo=firebase&logoColor=white) |
+| TypeScript       | Authentication          |
+| Vite             | Realtime Database       |
+| Chakra UI        | Storage                 |
+| React Router DOM | Hosting                 |
+| Framer Motion    |                         |
+| React Icons      |                         |
+| Leaflet & React Leaflet |                 |
+| Fuse.js          |                         |
+| Date-fns         |                         |
+| UUID             |                         |
 
-### Backend & Infraestrutura
-- **Firebase**
-  - Authentication - Autenticação de usuários
-  - Realtime Database - Banco de dados em tempo real
-  - Storage - Armazenamento de arquivos
-  - Hosting - Hospedagem da aplicação
+---
 
-## 🎨 Telas e Funcionalidades
+## 🖥️ Telas e Funcionalidades
 
-### 1. Autenticação
-- **Login** (`Login.tsx`)
-  - Autenticação de usuários
-  - Integração com Firebase Auth
-  - Validação de formulários
+<details>
+<summary><strong>1. Autenticação</strong></summary>
 
-- **Cadastro** (`Cadastro.tsx`, `Register.tsx`)
-  - Registro de novos usuários
-  - Validação de dados
-  - Upload de foto de perfil
+- **Login** (`Login.tsx`): Autenticação via Firebase, validação de formulários.
+- **Cadastro** (`Cadastro.tsx`, `Register.tsx`): Registro de usuários, upload de foto de perfil.
+</details>
 
-### 2. Página Inicial (`Home.tsx`)
-- Dashboard principal
-- Estatísticas de problemas
-- Feed de problemas recentes
-- Navegação rápida para funcionalidades principais
+<details>
+<summary><strong>2. Página Inicial</strong> (`Home.tsx`)</summary>
 
-### 3. Mapa (`Mapa.tsx`)
-- Visualização interativa de problemas
-- Clusters de problemas por região
-- Filtros e busca
-- Integração com Leaflet para visualização de mapas
+- Dashboard principal com estatísticas, feed de problemas recentes e navegação rápida.
+</details>
 
-### 4. Reporte de Problemas
-- **RelatarProblema.tsx** / **ReportProblem.tsx**
-  - Formulário de reporte
-  - Upload de imagens
-  - Seleção de localização
-  - Categorização de problemas
+<details>
+<summary><strong>3. Mapa</strong> (`Mapa.tsx`)</summary>
 
-### 5. Listagem de Problemas (`ProblemList.tsx`)
-- Lista de problemas reportados
-- Filtros e ordenação
-- Status de problemas
-- Ações rápidas
+- Visualização interativa dos problemas, clusters por região, filtros, busca e integração com Leaflet.
+</details>
 
-### 6. Perfil do Usuário
-- **Perfil.tsx** / **Profile.tsx**
-  - Informações do usuário
-  - Histórico de reportes
-  - Configurações de conta
-  - Estatísticas pessoais
+<details>
+<summary><strong>4. Reporte de Problemas</strong></summary>
 
-### 7. Área Administrativa
-- **Admin.tsx**
-  - Dashboard administrativo
-  - Gerenciamento de usuários
-  - Moderação de problemas
-  - Relatórios e estatísticas
+- **RelatarProblema.tsx / ReportProblem.tsx**: Formulário, upload de imagens, seleção de localização e categoria.
+</details>
 
-- **PrimeiroAdmin.tsx**
-  - Configuração inicial do administrador
-  - Definição de permissões
+<details>
+<summary><strong>5. Listagem de Problemas</strong> (`ProblemList.tsx`)</summary>
 
-## 🛠️ Configuração do Ambiente
+- Lista com filtros, ordenação, status e ações rápidas.
+</details>
 
-1. Clone o repositório
+<details>
+<summary><strong>6. Perfil do Usuário</strong> (`Perfil.tsx` / `Profile.tsx`)</summary>
+
+- Informações, histórico, configurações e estatísticas pessoais.
+</details>
+
+<details>
+<summary><strong>7. Área Administrativa</strong> (`Admin.tsx`)</summary>
+
+- Dashboard, gerenciamento de usuários, moderação e relatórios.
+- **PrimeiroAdmin.tsx**: Configuração inicial do admin e permissões.
+</details>
+
+---
+
+## ⚡ Como rodar o projeto
+
 ```bash
-git clone [URL_DO_REPOSITÓRIO]
-```
+# 1. Clone o repositório
+git clone [URL_DO_REPOSITORIO]
 
-2. Instale as dependências
-```bash
+# 2. Instale as dependências
 npm install
-```
 
-3. Configure as variáveis de ambiente do Firebase
-- Crie um arquivo `.env` na raiz do projeto
-- Adicione as credenciais do Firebase
+# 3. Configure as variáveis de ambiente do Firebase
+# Crie um arquivo .env na raiz e adicione as credenciais
 
-4. Inicie o servidor de desenvolvimento
-```bash
+# 4. Inicie o servidor de desenvolvimento
 npm run dev
 ```
 
+---
+
 ## 📦 Scripts Disponíveis
 
-- `npm run dev` - Inicia o servidor de desenvolvimento
-- `npm run build` - Gera a build de produção
-- `npm run lint` - Executa o linter
-- `npm run preview` - Visualiza a build de produção localmente
+| Comando            | Descrição                                 |
+|--------------------|-------------------------------------------|
+| `npm run dev`      | Inicia o servidor de desenvolvimento      |
+| `npm run build`    | Gera a build de produção                  |
+| `npm run lint`     | Executa o linter                          |
+| `npm run preview`  | Visualiza a build de produção localmente  |
+
+---
 
 ## 🔒 Segurança
+
 - Autenticação via Firebase
 - Regras de segurança no Realtime Database
 - Validação de dados no frontend e backend
 - Proteção de rotas administrativas
 
+---
+
 ## 📱 Responsividade
-- Design responsivo para diferentes dispositivos
-- Interface adaptativa usando Chakra UI
-- Otimização para mobile
+
+- Design responsivo (desktop, tablet e mobile)
+- Interface adaptativa com Chakra UI
+
+---
 
 ## 🎯 Funcionalidades Principais
-- Reporte de problemas urbanos
-- Geolocalização de problemas
-- Sistema de moderação
-- Dashboard administrativo
-- Perfis de usuário
-- Upload de imagens
-- Sistema de busca
-- Visualização em mapa
 
-## 🤝 Contribuição
-1. Faça um Fork do projeto
-2. Crie uma Branch para sua Feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a Branch (`git push origin feature/AmazingFeature`)
+- 📍 Reporte e geolocalização de problemas urbanos
+- 🗂️ Sistema de moderação e dashboard administrativo
+- 👤 Perfis de usuário e histórico de reportes
+- 🖼️ Upload de imagens
+- 🔎 Busca e filtros avançados
+- 🗺️ Visualização em mapa interativo
+
+---
+
+## 🤝 Como contribuir
+
+1. Faça um Fork
+2. Crie uma branch (`git checkout -b feature/SuaFeature`)
+3. Commit suas mudanças (`git commit -m 'feat: SuaFeature'`)
+4. Push na branch (`git push origin feature/SuaFeature`)
 5. Abra um Pull Request
 
+---
+
 ## 📄 Licença
+
 Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+
+---
