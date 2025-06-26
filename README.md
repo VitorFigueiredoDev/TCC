@@ -8,9 +8,15 @@
 
 ---
 
-## 📋 Descrição
+## 📋 Descrição do Projeto
 
-Sistema web para **reportar, visualizar e gerenciar problemas urbanos**. Cidadãos podem relatar ocorrências em suas comunidades e administradores têm ferramentas para moderação e acompanhamento.
+O **Sistema de Gestão de Problemas Urbanos** é uma plataforma web desenvolvida para facilitar o reporte, acompanhamento e gerenciamento de problemas urbanos em cidades. O objetivo é conectar cidadãos e administração pública, promovendo uma cidade mais organizada, segura e participativa. Usuários podem relatar ocorrências, acompanhar o status das soluções e contribuir para a melhoria do ambiente urbano.
+
+---
+
+## 💡 Motivação
+
+A ideia deste projeto surgiu da necessidade de criar uma solução tecnológica que auxilie na identificação e resolução de problemas urbanos, como buracos em vias, iluminação pública, descarte irregular de lixo, entre outros. O propósito é incentivar a participação cidadã, aumentar a transparência e agilizar a resposta do poder público, tornando as cidades mais inteligentes e colaborativas.
 
 ---
 
